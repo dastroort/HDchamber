@@ -1,0 +1,57 @@
+body{
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+body{background: no-repeat radial-gradient(#252736, #0e0e14);}
+
+h1,legend{text-align: center;}
+h1{margin-top: 30px;}
+*{color:#ccc7d1; font-family: Verdana;}
+.button{
+  box-sizing: border-box;
+  background-color: transparent;
+  text-align: center;
+  font-size: 20px;
+  margin: 25px;
+  display: inline-block;
+  width: 45px; height: 45px;
+  border: 1px solid #ccc7d1;
+  border-radius: 3px;
+  text-decoration: none;
+  opacity: 0.45;
+  transition: all .3s ease;
+}
+.button:hover{opacity: 1;}
+
+ul :not(:first-child) .button{margin-top: 0}
+.buttons{list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; position: relative; z-index: 100;}
+.buttons.left{float: left;}
+.buttons.right{float: right;}
+.button i{height: 45px; display: flex; scale:0.9; justify-content: center; align-items: center;}
+main{position: absolute;}
+
+
+.vertex{
+  background-color: #ccc7d1;
+  aspect-ratio: 1/1;
+  border-radius: 50%;
+  position: absolute;
+  transform: translate(-50%,-50%);
+}
+
+legend *{margin: auto;}
+.bar{
+  margin-top: 3px;
+  border: 1px solid #ccc7d1c0;
+  height: 10px;
+  max-width: 300px;
+  border-radius: 3px;
+  background: linear-gradient(to right, hsl(230, 100%, 50%), hsl(310, 100%, 50%));
+  opacity: .5;
+}
+
+@media screen and (max-width:800px) {
+  h1{font-size: 24px;}
+}
