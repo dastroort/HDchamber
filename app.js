@@ -1,15 +1,26 @@
 const canvas = document.querySelector("canvas");
 let context = canvas.getContext("2d");
+let angle = 0;
 const dims = {
   "width": window.innerWidth,
   "height": 77.5/100 *window.innerHeight
 };
 canvas.width = dims.width;
 canvas.height = dims.height;
-let angle = 0;
-const pointSize = 10;
-const cameraDistance = 3;
-const SCALE = 200;
+
+function extendMatrix(matrix) {
+  let rows = matrix.length;
+  let cols = matrix[0].length;
+  // Add a row of zeros at the bottom
+  let newRow = Array(cols).fill(0);
+  newRow.push(1);
+  matrix.push(newRow);
+  // Add a column of zeros to the right, with a specific value in the last position
+  for (let i = 0; i < rows; i++) {
+    matrix[i].push(0);
+  }
+  return matrix;
+}
 
 function matrixPointMul(matrix, point){
   let result = [];
@@ -17,80 +28,124 @@ function matrixPointMul(matrix, point){
   for (let i = 0; i < matrix.length; i++) {
     let sum = 0;
     for (let j = 0; j < matrix[0].length; j++) {
-      sum += matrix[i][j] * point.coordinates[j];
+      sum += matrix[i][j] * (j < point.nthDimension ? point.coordinates[j] : 1);
     }
     result[i] = sum;
   }
-  return new PointND(result);
+  return new PointND(...result.slice(0, point.nthDimension));
 }
 
-function createAllRotationMatrices(nthDimension){
-  let matrices = [];
-  let mainDiagonals = arrangeAllMainDiagonals(nthDimension);
-  for(let n=0; n<mainDiagonals.length; n++){
-    matrices[n] = {
-      mainDiagonal: mainDiagonals[n],
-      mat: [],
-      alreadyAdded: false
-    };
-    let sinesLeft = 2;
-    for(let i=0; i<mainDiagonals[0].length; i++){
-      matrices[n].mat[i] = []
-      for(let j=0; j<mainDiagonals[0].length; j++){
-        if(i === j) matrices[n].mat[i][j] = mainDiagonals[n][j].value;
-        else if(mainDiagonals[n][j].value === 1 || mainDiagonals[n][i].value === 1) matrices[n].mat[i][j] = 0;
-        else if(sinesLeft === 2){
-          matrices[n].mat[i][j] = - Math.sin(angle);
-          sinesLeft--;
-        } else {
-          matrices[n].mat[i][j] = Math.sin(angle);
-          sinesLeft--;
+const cameraDistance = 3;
+const SCALE = 200;
+
+// helper methods to create a wellknown transformation matrix
+class Matrix {
+  static translation(...vector) {
+    const rows = vector.length + 1, columns = rows;
+    const matrix = Array(rows);
+    for(let i=0; i<rows; i++){
+      matrix[i] = Array(columns);
+      for(let j=0; j<columns; j++){
+        if(i === j) matrix[i][j] = 1;
+        else if(j === columns-1) matrix[i][j] = vector[i]; 
+        else matrix[i][j] = 0;
+      }
+    }
+    matrix.pop();
+    return matrix;
+  }
+  
+  static allRotations(nthDimension, angle, center=PointND.origin(nthDimension).coordinates){
+    let matrices = [];
+    let mainDiagonals = Matrix.#possibleRotationMainDiagonals(nthDimension);
+    for(let n=0; n<mainDiagonals.length; n++){
+      matrices[n] = [];
+      let sinesLeft = 2;
+      for(let i=0; i<mainDiagonals[0].length; i++){
+        matrices[n][i] = []
+        for(let j=0; j<mainDiagonals[0].length; j++){
+          if(i === j && mainDiagonals[n][j] === "cos") matrices[n][i][j] = Math.cos(angle);
+          else if(i === j && mainDiagonals[n][j] === "1") matrices[n][i][j] = 1;
+          else if(mainDiagonals[n][j] === "1" || mainDiagonals[n][i] === "1") matrices[n][i][j] = 0;
+          else if(sinesLeft === 2){
+            matrices[n][i][j] = -Math.sin(angle);
+            sinesLeft--;
+          } else {
+            matrices[n][i][j] = Math.sin(angle);
+            sinesLeft--;
+          }
         }
       }
     }
+    matrices.unshift(Matrix.translation(...oppositeVector(center)));
+    matrices.push(Matrix.translation(...center));
+    return matrices;
   }
-  return matrices;
-}
-
-function filterRotations(matrices, filterRules={}){
-  let filteredMatrices = [];
-  // the array numbers are referred to those rotation which transforms the all the coordinates from 0 to n-1 has a variable angle
-  if(Array.isArray(filterRules.only.coordinatesPairs)){
-    for(let n=0; n<filterRules.only.coordinatesPairs.length; n++){
-      if(filterRules.only.coordinatesPairs[0].length !== 2) throw new Error("Invalid length for a coordinate pair");
-      let x = filterRules.only.coordinatesPairs[n][0];
-      let y = filterRules.only.coordinatesPairs[n][1];
+  
+  static filterFromAllRotations(nthDimension, angle, coordinateIndexPairsInvolved, center=PointND.origin(nthDimension).coordinates, type="and"){
+    let matrices = Matrix.allRotations(nthDimension, angle, center);
+    matrices.pop(); matrices.shift(); // excluding the two translation matrices
+    let mainDiagonals = Matrix.#possibleRotationMainDiagonals(nthDimension);
+    let filteredMatrices = [];
+    // the array numbers are referred to those rotation which transforms the all the coordinates from 0 to n-1 has a variable angle
+    for(let n=0; n<coordinateIndexPairsInvolved.length; n++){
+      if(coordinateIndexPairsInvolved[0].length !== 2) throw new Error("Invalid length for a coordinate pair");
+      let x = coordinateIndexPairsInvolved[n][0];
+      let y = coordinateIndexPairsInvolved[n][1];
       for(let i=0; i<matrices.length; i++){
-        if(matrices[i].alreadyAdded) continue;
-        // the filter depends on type of only: if both of the coordinates must have cosine is "and", if at least one "or"
-        if(filterRules.only.type === "and" && !(matrices[i].mainDiagonal[x].isCosine && matrices[i].mainDiagonal[y].isCosine)) continue;
-        if(filterRules.only.type === "or" && !(matrices[i].mainDiagonal[x].isCosine || matrices[i].mainDiagonal[y].isCosine)) continue;
-        matrices[i].alreadyAdded = true;
-        filteredMatrices.push(matrices[i]);
+        if(filteredMatrices.includes(matrices[i])) continue;
+        // the filter depends on type: if both of the coordinates must have cosine is "and", if at least one "or"
+        let isValid = false;
+        switch (type) {
+          case "and":
+            isValid = (mainDiagonals[i][x] === "cos" && mainDiagonals[i][y] === "cos");
+            break;
+          case "or":
+            isValid = (mainDiagonals[i][x] === "cos" || mainDiagonals[i][y] === "cos");
+            break;
+          default: throw new Error("Invalid value for \"type\": " + type);
+        }
+        if (isValid) filteredMatrices.push(matrices[i]);
       }
     }
+    return filteredMatrices;
   }
-  return filteredMatrices;
-}
 
-function arrangeAllMainDiagonals(nthDimension, mainDiagonal=[], cosinesLeft=2){
-  if(nthDimension === 0){
-    return [ mainDiagonal ];
+  static #possibleRotationMainDiagonals(nthDimension, mainDiagonal=[], cosinesLeft=2){
+    if(nthDimension < cosinesLeft) throw new Error("Rotations cannot exist in "+nthDimension+" dimension/s.");
+    if(nthDimension === 0){
+      return [ mainDiagonal ];
+    }
+    // all dispositions among two "cosines" and "1"
+    let dispositions = [];
+    // checks if all "cosines" are used till the last position, if not, you must use the last cosine
+    // before completing the diagonal in order to create a valid rotation matrix
+    if(cosinesLeft === nthDimension)
+      dispositions = [...Matrix.#possibleRotationMainDiagonals(nthDimension - 1, mainDiagonal.concat("cos"), cosinesLeft - 1)];
+    // if two cosines are used, you cannot use another one
+    else if(cosinesLeft > 0) dispositions = [
+      ...Matrix.#possibleRotationMainDiagonals(nthDimension - 1, mainDiagonal.concat("cos"), cosinesLeft - 1),
+      ...Matrix.#possibleRotationMainDiagonals(nthDimension - 1, mainDiagonal.concat("1"), cosinesLeft)
+    ]
+    else dispositions = [...Matrix.#possibleRotationMainDiagonals(nthDimension - 1, mainDiagonal.concat("1"), cosinesLeft)];
+    // if( dispositions.length !== actualDispositions) throw new Error("Something went wrong: in "+nthDimension+" dimensions there are not "+dispositions.length+" rotations");
+    return dispositions;
   }
-  // all dispositions among two "cosines" and "1"
-  let dispositions = [];
-  // checks if all "cosines" are used till the last position, if not, you must use the last cosine
-  // before completing the diagonal in order to create a valid rotation matrix
-  if(cosinesLeft === nthDimension)
-    dispositions = [...arrangeAllMainDiagonals(nthDimension - 1, mainDiagonal.concat({value: Math.cos(angle), isCosine: true}), cosinesLeft - 1)];
-  // if two cosines are used, you cannot use another one
-  else if(cosinesLeft > 0) dispositions = [
-    ...arrangeAllMainDiagonals(nthDimension - 1, mainDiagonal.concat({value: Math.cos(angle), isCosine: true}), cosinesLeft - 1),
-    ...arrangeAllMainDiagonals(nthDimension - 1, mainDiagonal.concat({value: 1, isCosine: false}), cosinesLeft)
-  ]
-  else dispositions = [...arrangeAllMainDiagonals(nthDimension - 1, mainDiagonal.concat({value: 1, isCosine: false}), cosinesLeft)];
-  // if( dispositions.length !== actualDispositions) throw new Error("Something went wrong: in "+nthDimension+" dimensions there are not "+dispositions.length+" rotations");
-  return dispositions;
+  
+  static scale(...factors){
+    const rows = factors.length, columns = rows;
+    const matrix = Array(rows);
+    for(let i=0; i<rows; i++){
+      matrix[i] = Array(columns);
+      for(let j=0; j<columns; j++){
+        if(i === j) matrix[i][j] = factors[i];
+        else matrix[i][j] = 0;
+      }
+    }
+    return matrix;
+  }
+
+  static symmetry(){return 1;}
 }
 
 class PointND{
@@ -98,19 +153,30 @@ class PointND{
     this.nthDimension = coordinates.length;
     this.coordinates = coordinates;
   }
-  traslate(vector){
-    for(let i=0; i<vector.length; i++) this.coordinates[i] += vector[i];
-    return this;
+
+  static origin(nthDimension){return new PointND(...Array(nthDimension).fill(0)); }
+
+  transform(...matrices){
+    let transformed = this;
+    for(let i=0; i<matrices.length; i++){
+      let matrixCols = matrices[i][0].length, matrixRows = matrices[i].length;
+      if(matrixCols === this.nthDimension + 1 && matrixRows === this.nthDimension)
+        transformed = matrixPointMul(matrices[i], new PointND(...transformed.coordinates, 1));
+      else transformed = matrixPointMul(matrices[i], transformed);
+    }
+    return transformed;
   }
+
   convertTo(dimensions){
     let extension = [];
     let dimensionsLeft = dimensions - this.nthDimension;
     for(let i=0; i<dimensionsLeft; i++) extension[i] = 0;
-    return new PointND([...this.coordinates, ...extension]);
+    return new PointND(...this.coordinates, ...extension);
   }
+
   projectInto(dimensions=2, isOrto=false){
     let dimensionsLeft = this.nthDimension - dimensions;
-    if(dimensionsLeft === 0) return new PointND(this.coordinates);
+    if(dimensionsLeft === 0) return new PointND(...this.coordinates);
 
     let perspectiveFactor = 1 / (cameraDistance - this.coordinates[this.coordinates.length - 1]);
     if(isOrto) perspectiveFactor = 1;
@@ -126,6 +192,7 @@ class PointND{
     let projected = matrixPointMul(projectionMatrix, this);
     return projected.projectInto(dimensions, isOrto);
   }
+
   draw(depth, scale=SCALE, nthDimensionPoint=undefined){
     // only a point in 2 dimensions can be drawn on a screen
     if(this.nthDimension > 2) throw new Error("This point has too many dimensions to be drawn. You should project it");
@@ -150,8 +217,91 @@ class PointND{
       context.fillStyle = color;
       context.fill();
       context.closePath();
-    } else if(this.nthDimension === 1) (new PointND([...this.coordinates,0])).draw(depth);
-    else if(this.nthDimension === 0) (new PointND([0,0])).draw(depth);
+    } else if(this.nthDimension === 1) (new PointND(...this.coordinates,0)).draw(depth);
+    else if(this.nthDimension === 0) (new PointND(0,0)).draw(depth);
+  }
+
+  distanceSquare(point){
+    let sum=0;
+    for(let dim=0; dim<this.nthDimension; dim++) sum += Math.pow(this.coordinates[dim] - point.coordinates[dim], 2);
+    return sum;
+  }
+}
+
+class MeshND{
+  constructor(vertices){
+    this.vertices = vertices;
+  }
+
+  barycenter(){
+    let barycenterCoords = [];
+    let sum = 0;
+    for(let dim=0; dim<this.vertices[0].nthDimension; dim++){
+      for(let i=0; i<this.vertices.length; i++){
+        sum += this.vertices[i].coordinates[dim];
+      }
+      barycenterCoords.push(sum/this.vertices.length);
+      sum = 0;
+    }
+    return new PointND(...barycenterCoords);
+  }
+  
+  render(scale=SCALE){
+    this.vertices.forEach(vertex => {
+      let projectedVertex = vertex.projectInto(2);
+      let sampleForHigherDimension = undefined;
+      if(vertex.nthDimension > 3) sampleForHigherDimension = vertex;
+      projectedVertex.draw(vertex.coordinates[2], scale, vertex);
+    });
+  }
+
+  transform(...matrices){
+    for(let i=0; i<this.vertices.length; i++) this.vertices[i] = this.vertices[i].transform(...matrices);
+    return this;
+  }
+}
+
+class Hypercube extends MeshND{
+  constructor(dimensions, side){
+    const vertices = Hypercube.#createHypercube(dimensions, side);
+    super(vertices);
+  }
+
+  static #createHypercube(dimensions, side, pointstamp=[]){
+    if(dimensions === 0){
+      return [ new PointND(...pointstamp) ];
+    }else return [
+      ...this.#createHypercube(dimensions - 1, side, pointstamp.concat(side/2)),
+      ...this.#createHypercube(dimensions - 1, side, pointstamp.concat(-side/2))
+    ];
+  }
+}
+
+class Simplex extends MeshND{
+  constructor(dimensions, side){
+    const vertices = Simplex.#createSimplex(dimensions, side);
+    super(vertices);
+  }
+
+  static #createSimplex(dimensions, side, pointstamp=[]){
+    if(dimensions === 1){
+      return (new Hypercube(1, side, pointstamp)).vertices;
+    } else {
+      let oldSimplex = new Simplex(dimensions - 1, side, pointstamp);
+      let oldBarycenter = oldSimplex.barycenter();
+      let newVertex = new PointND(...oldBarycenter.coordinates, Math.sqrt(side**side - oldBarycenter.distanceSquare(oldSimplex.vertices[0])));
+      let vertices = [ ...oldSimplex.vertices, newVertex ];
+      let simplex = new MeshND(vertices);
+      for(let i=0; i<vertices.length; i++){
+        // check if all the vertices have the same number of coordinates
+        if(vertices[i].nthDimension > dimensions) throw new Error("A point has too many coordinates");
+        if(vertices[i].nthDimension < dimensions) vertices[i] = vertices[i].convertTo(dimensions);
+      }
+      let oppositeNewBarycenterVector = oppositeVector(simplex.barycenter().coordinates);
+      // center the simplex with a traslation
+      simplex.transform(Matrix.translation(...oppositeNewBarycenterVector));
+      return vertices;
+    }
   }
 }
 
@@ -194,6 +344,7 @@ function createSphere3D(radius, stepAngle, hyperheight=0) {
       // 0.5 * stepAngle * (1 + Math.sqrt(1 - circleRadius*circleRadius)) / circleRadius : stepAngle;
     circles.push(createCircle2D(circleRadius, stepAngle, {"y": height, "w": hyperheight}));
     circles.push(createCircle2D(circleRadius, stepAngle, {"z": height, "w": hyperheight}));
+    lastCircleRadius = circleRadius !== 0 ? circleRadius : 1;
   }
   return circles;
 }
@@ -208,61 +359,15 @@ function createSphere4D(radius, stepAngle, noOfSpheres=3) {
   return spheres;
 }
 
-function createHyperCube(dimensions, side, pointstamp=[]){
-  if(dimensions === 0){
-    return [ new PointND(pointstamp) ];
-  }else return [
-    ...createHyperCube(dimensions - 1, side, pointstamp.concat(side/2)),
-    ...createHyperCube(dimensions - 1, side, pointstamp.concat(-side/2))
-  ];
+function flattenArray(arr) {
+  console.log("flatten");
+  return arr.reduce((acc, val) => Array.isArray(val) ? acc.concat(flattenArray(val)) : acc.concat(val), []);
 }
+
 function oppositeVector(vector){
   for(let i=0; i<vector.length; i++) vector[i] *= -1;
   return vector;
 }
-
-function createSimplex(dimensions, side, pointstamp=[]){
-  if(dimensions === 1){
-    return createHyperCube(1, side, pointstamp);
-  }else{
-    let oldSimplexVertices = createSimplex(dimensions - 1, side, pointstamp);
-    let oldBarycenter = barycenterOf(oldSimplexVertices);
-    let newVertex = new PointND([...oldBarycenter.coordinates, Math.sqrt(side**side - distanceSquare(oldBarycenter, oldSimplexVertices[0]))]);
-    let vertices = [ ...oldSimplexVertices, newVertex ];
-    for(let i=0; i<vertices.length; i++){
-      // check if all the vertices have the same number of coordinates
-      if(vertices[i].nthDimension > dimensions) throw new Error("A point has too many coordinates");
-      if(vertices[i].nthDimension < dimensions) vertices[i] = vertices[i].convertTo(dimensions);
-    }
-    let oppositeNewBarycenterVector = oppositeVector(barycenterOf(vertices).coordinates);
-    for (let i=0; i<vertices.length; i++){
-      // center the simplex with a traslation
-      vertices[i].traslate(oppositeNewBarycenterVector);
-    }
-    return vertices;
-  }
-}
-
-function barycenterOf(points){
-  let barycenterCoords = [];
-  let sum = 0;
-  for(let dim=0; dim<points[0].nthDimension; dim++){
-    for(let i=0; i<points.length; i++){
-      sum += points[i].coordinates[dim];
-    }
-    barycenterCoords.push(sum/points.length);
-    sum = 0;
-  }
-  return new PointND(barycenterCoords);
-}
-
-
-function distanceSquare(pointA, pointB){
-  let sum=0;
-  for(let dim=0; dim<pointA.nthDimension; dim++) sum += Math.pow(pointA.coordinates[dim] - pointB.coordinates[dim], 2);
-  return sum;
-}
-
 
 function create24Cell() {
   const vertices = [];
@@ -288,17 +393,10 @@ function create24Cell() {
   return vertices;
 }
 
-function flattenArray(arr) {
-  console.log("flatten");
-  return arr.reduce((acc, val) => Array.isArray(val) ? acc.concat(flattenArray(val)) : acc.concat(val), []);
-}
-
-let vertices = createSimplex(4, 2);
 
 let initialTime = Date.now();
 const speed = 0.6 // rad/s
-
-vertices = flattenArray(vertices);
+let position = 0;
 
 function tic(){
   angle = (angle > 2*Math.PI) ? angle - 2*Math.PI : angle;
@@ -306,28 +404,19 @@ function tic(){
   let deltaTime = lastTime - initialTime;
   angle += speed * deltaTime / 1000;
   initialTime = lastTime;
+  
+  renderEnvironment();
+}
 
+function renderEnvironment(){
   context.clearRect(0,0,window.innerWidth,window.innerHeight);
 
-  vertices = vertices.sort((a,b) => b.z - a.z)
-  for(let i=0; i<vertices.length; i++){
-    let rotated = vertices[i];
-    let rotationMatrices = createAllRotationMatrices(rotated.nthDimension);
-    let filterRules = {
-      only: {
-        coordinatesPairs: [[0, 2], [1,3]],
-        type: "and"
-      }
-    }
-    let filteredRotationMatrices = filterRotations(rotationMatrices, filterRules);
-    console.log(filteredRotationMatrices);
-    for(let i=0; i<filteredRotationMatrices.length; i++){
-      rotated = matrixPointMul(filteredRotationMatrices[i].mat, rotated);
-    }
-  
-    let projected = rotated.projectInto(2);
-    projected.draw(rotated.coordinates[2], SCALE, rotated);
-  }
+  const DIMENSIONS = 7;
+  let tesseract = new Simplex(DIMENSIONS, 2);
+  let rotationMatrices = Matrix.allRotations(DIMENSIONS, angle, tesseract.barycenter().coordinates);
+  tesseract.transform(...rotationMatrices);
+  console.log(tesseract.vertices);
+  tesseract.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
   requestAnimationFrame(tic);
 }
 
