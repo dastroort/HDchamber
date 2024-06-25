@@ -32,7 +32,7 @@ function matrixPointMul(matrix, point){
     }
     result[i] = sum;
   }
-  return new PointND(...result.slice(0, point.nthDimension));
+  return new PointND(...result);
 }
 
 const cameraDistance = 3;
@@ -160,7 +160,7 @@ class PointND{
     let transformed = this;
     for(let i=0; i<matrices.length; i++){
       let matrixCols = matrices[i][0].length, matrixRows = matrices[i].length;
-      if(matrixCols === this.nthDimension + 1 && matrixRows === this.nthDimension)
+      if(matrixCols === this.nthDimension + 1 && matrixRows === matrixCols - 1)
         transformed = matrixPointMul(matrices[i], new PointND(...transformed.coordinates, 1));
       else transformed = matrixPointMul(matrices[i], transformed);
     }
@@ -200,7 +200,7 @@ class PointND{
       context.beginPath();
       let positionX = scale*this.coordinates[0] + 5 + dims.width/2;
       let positionY = scale*this.coordinates[1] + 5 + dims.height/2;
-      let pointSize = 10 / (cameraDistance - depth);
+      let pointSize = 5 / (cameraDistance - depth);
       context.arc(positionX, positionY, pointSize, 0, 2*Math.PI, false);
       context.stroke();
       context.strokeStyle = "rgba(0,0,0,0.25)";
@@ -304,66 +304,63 @@ class Simplex extends MeshND{
     }
   }
 }
+class Orthoplex extends MeshND{
+  constructor(dimensions, side){
+    const vertices = Orthoplex.#createOrthoplex(dimensions, side);
+    super(vertices);
+  }
 
-const hypersphereRadius = 2;
-const stepAngle = Math.PI / 10;
-const stepHeight = stepAngle / (Math.PI);
-const stepHyperheight = stepHeight;
+  static #createOrthoplex(dimensions, side, pointstamp=[]){
+    if(dimensions === 0){
+      return [ new PointND(...pointstamp) ];
+    }else if(!pointstamp.includes(side*Math.SQRT1_2) && !pointstamp.includes(-side*Math.SQRT1_2) && dimensions === 1)
+      return [...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(side*Math.SQRT1_2)),
+      ...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(-side*Math.SQRT1_2))]
+    else if(!pointstamp.includes(side*Math.SQRT1_2) && !pointstamp.includes(-side*Math.SQRT1_2))
+      return [
+        ...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(side*Math.SQRT1_2)),
+        ...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(-side*Math.SQRT1_2)),
+        ...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(0))
+      ];
+    else return [...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(0))];
+  }
+}
 
-// Function to create a 2D circle of points, given radius and a stepangle.
-function createCircle2D(radius, stepAngle, fixedCoordinates={"z": 0,"w": 0}) {
-  let points = [];
-  for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
-    let x = radius * Math.cos(theta);
-    let y = radius * Math.sin(theta);
-    if (fixedCoordinates.z !== undefined){
-      points.push(new PointND(x, y, fixedCoordinates.z, fixedCoordinates.w));
-    } else if (fixedCoordinates.y !== undefined){
-      let z = y;
-      points.push(new PointND(x, fixedCoordinates.y, z, fixedCoordinates.w));
-    } else if (fixedCoordinates.x !== undefined){
-      let z = y;
-      y = x;
-      points.push(new PointND(fixedCoordinates.x, y, z, fixedCoordinates.w));
-    } else {
-      throw new Error("invalid properties in \"fixedCordinates\"");
+class Hypersphere extends MeshND{
+  constructor(dimensions, radius, stepAngle=Math.PI/10){
+    const vertices = Hypersphere.#createHypersphere(dimensions, radius, stepAngle);
+    super(vertices);
+  }
+  // Funzione ricorsiva per la creazione di ipersfere
+static #createHypersphere(dimensions, radius, stepAngle=Math.PI/10, pointstamp=[]) {
+  if (dimensions === 2) {
+    // Caso base: restituisci un array con un singolo punto
+    return Hypersphere.#createCircle(radius, stepAngle, pointstamp);
+  } else {
+    // Caso ricorsivo: costruisci i punti utilizzando le sezioni di ipersfere di dimensioni inferiori
+    let points = [];
+    let n = 10;
+    for (let i=0; i<=n; i++){
+      let w = radius*(Math.cos(Math.PI - i*Math.PI/n));
+      let oldHypersphereRadius = Math.sqrt(radius * radius - w * w);
+      let oldHypersphere = Hypersphere.#createHypersphere(dimensions - 1, oldHypersphereRadius, stepAngle, pointstamp.concat(w));
+      points.push(...oldHypersphere);
     }
+    return points;
   }
-  return points;
 }
-
-// Function to create a 3D sphere of points. Think as a z = h plane intersecting the sphere, which gives a circle. Easy to deal with it since we've
-// already have the function.
-function createSphere3D(radius, stepAngle, hyperheight=0) {
-  let circles = [];
-  // let lastCircleRadius = 0;
-  for (let height = -1; height <= 1 ; height += stepHeight) {
-    let circleRadius = Math.sqrt(radius*radius - height*height);
-    // let currentStepAngle = circleRadius !== 0 ?
-    //   Math.asin(lastCircleRadius * Math.sin(stepAngle) / circleRadius) : stepAngle;
-      // 0.5 * stepAngle * (1 + Math.sqrt(1 - circleRadius*circleRadius)) / circleRadius : stepAngle;
-    circles.push(createCircle2D(circleRadius, stepAngle, {"y": height, "w": hyperheight}));
-    circles.push(createCircle2D(circleRadius, stepAngle, {"z": height, "w": hyperheight}));
-    lastCircleRadius = circleRadius !== 0 ? circleRadius : 1;
+  // Function to create a 2D circle of points, given radius and a stepangle.
+  static #createCircle(radius, stepAngle, pointstamp=[]) {
+    let points = [];
+    for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
+      let x = radius * Math.cos(theta);
+      let y = radius * Math.sin(theta);
+      let newPoint = new PointND(x, y, ...pointstamp);
+      if(!points.includes(newPoint)) points.push(newPoint);
+    }
+    return points;
   }
-  return circles;
 }
-
-// It's the analogue of the sphere but in four dimensions: a 3D-space w = 0 is intersecting the hypershpere, which gives a traditional sphere.
-function createSphere4D(radius, stepAngle, noOfSpheres=3) {
-  let spheres = [];
-  let stepHyperheight = radius / (noOfSpheres-1);
-  for (let hyperheight = -1; hyperheight <= 1 ; hyperheight += stepHyperheight) {
-    spheres.push(createSphere3D(Math.sqrt(radius*radius - hyperheight*hyperheight), stepAngle, hyperheight));
-  }
-  return spheres;
-}
-
-function flattenArray(arr) {
-  console.log("flatten");
-  return arr.reduce((acc, val) => Array.isArray(val) ? acc.concat(flattenArray(val)) : acc.concat(val), []);
-}
-
 function oppositeVector(vector){
   for(let i=0; i<vector.length; i++) vector[i] *= -1;
   return vector;
@@ -407,19 +404,17 @@ function tic(){
   
   renderEnvironment();
 }
-
 function renderEnvironment(){
   context.clearRect(0,0,window.innerWidth,window.innerHeight);
-
-  const DIMENSIONS = 7;
-  let tesseract = new Simplex(DIMENSIONS, 2);
-  let rotationMatrices = Matrix.allRotations(DIMENSIONS, angle, tesseract.barycenter().coordinates);
-  tesseract.transform(...rotationMatrices);
-  console.log(tesseract.vertices);
-  tesseract.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+  const DIMENSIONS = 4;
+  let sphere = new Hypersphere(DIMENSIONS, 2);
+  console.log(sphere);
+  let rotationMatrices = Matrix.allRotations(DIMENSIONS, angle, sphere.barycenter().coordinates);
+  sphere.transform(...rotationMatrices);
+  console.log(sphere.vertices);
+  sphere.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
   requestAnimationFrame(tic);
 }
-
 function resizeCanvas() {
   dims.width = window.innerWidth;
   context = canvas.getContext("2d");
