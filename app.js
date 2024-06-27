@@ -176,7 +176,7 @@ class PointND{
 
   projectInto(dimensions=2, isOrto=false){
     let dimensionsLeft = this.nthDimension - dimensions;
-    if(dimensionsLeft === 0) return new PointND(...this.coordinates);
+    if(dimensionsLeft === 0) return this;
 
     let perspectiveFactor = 1 / (cameraDistance - this.coordinates[this.coordinates.length - 1]);
     if(isOrto) perspectiveFactor = 1;
@@ -231,6 +231,7 @@ class PointND{
 class MeshND{
   constructor(vertices){
     this.vertices = vertices;
+    this.nthDimension = this.vertices[0].nthDimension;
   }
 
   barycenter(){
@@ -246,13 +247,23 @@ class MeshND{
     return new PointND(...barycenterCoords);
   }
   
-  render(scale=SCALE){
+  render(scale=SCALE * Math.pow(3, DIMENSIONS - 3)){
     this.vertices.forEach(vertex => {
       let projectedVertex = vertex.projectInto(2);
       let sampleForHigherDimension = undefined;
+      let depth = 1;
       if(vertex.nthDimension > 3) sampleForHigherDimension = vertex;
-      projectedVertex.draw(vertex.coordinates[2], scale, vertex);
+      if(vertex.nthDimension > 2) depth = vertex.coordinates[2];
+      projectedVertex.draw(depth, scale, vertex);
     });
+  }
+  extendIn(dimensions){
+    let amountOfZeros = dimensions - this.nthDimension;
+    if(amountOfZeros < 0) throw new Error("Impossible extension in a lower dimension");
+    if(amountOfZeros === 0) return this;
+    let zerosToAppend = Array(amountOfZeros).fill(0);
+    this.vertices = this.vertices.map(vertex => new PointND(...vertex.coordinates.concat(zerosToAppend)));
+    return new MeshND(this.vertices);
   }
 
   transform(...matrices){
@@ -285,7 +296,7 @@ class Simplex extends MeshND{
 
   static #createSimplex(dimensions, side, pointstamp=[]){
     if(dimensions === 1){
-      return (new Hypercube(1, side, pointstamp)).vertices;
+      return (new Hypercube(1, side)).vertices;
     } else {
       let oldSimplex = new Simplex(dimensions - 1, side, pointstamp);
       let oldBarycenter = oldSimplex.barycenter();
@@ -327,23 +338,26 @@ class Orthoplex extends MeshND{
 }
 
 class Hypersphere extends MeshND{
-  constructor(dimensions, radius, stepAngle=Math.PI/10){
-    const vertices = Hypersphere.#createHypersphere(dimensions, radius, stepAngle);
+  constructor(dimensions, radius, complexity=10){
+    const vertices = Hypersphere.#createHypersphere(dimensions, radius, complexity);
     super(vertices);
   }
   // Funzione ricorsiva per la creazione di ipersfere
-static #createHypersphere(dimensions, radius, stepAngle=Math.PI/10, pointstamp=[]) {
+static #createHypersphere(dimensions, radius, complexity, pointstamp=[]) {
+  let stepAngle = Math.PI/complexity;
+  if (dimensions === 1) {
+    return new Hypercube(1, radius).vertices;
+  }
   if (dimensions === 2) {
     // Caso base: restituisci un array con un singolo punto
     return Hypersphere.#createCircle(radius, stepAngle, pointstamp);
   } else {
     // Caso ricorsivo: costruisci i punti utilizzando le sezioni di ipersfere di dimensioni inferiori
     let points = [];
-    let n = 10;
-    for (let i=0; i<=n; i++){
-      let w = radius*(Math.cos(Math.PI - i*Math.PI/n));
+    for (let i=0; i<=complexity; i++){
+      let w = radius*(Math.cos(Math.PI - i*Math.PI/complexity));
       let oldHypersphereRadius = Math.sqrt(radius * radius - w * w);
-      let oldHypersphere = Hypersphere.#createHypersphere(dimensions - 1, oldHypersphereRadius, stepAngle, pointstamp.concat(w));
+      let oldHypersphere = Hypersphere.#createHypersphere(dimensions - 1, oldHypersphereRadius, complexity, pointstamp.concat(w));
       points.push(...oldHypersphere);
     }
     return points;
@@ -359,6 +373,30 @@ static #createHypersphere(dimensions, radius, stepAngle=Math.PI/10, pointstamp=[
       if(!points.includes(newPoint)) points.push(newPoint);
     }
     return points;
+  }
+}
+
+class Torus extends MeshND{
+  constructor(dimensions, radius, distanceFromTheCenter=2*radius, complexity=10){
+    const vertices = Torus.#createTorus(dimensions, radius, distanceFromTheCenter, complexity);
+    super(vertices);
+  }
+
+  static #createTorus(dimensions, radius, distanceFromTheCenter, complexity){
+    let vertices = [];
+    let slice = new Hypersphere(dimensions - 1, radius, complexity/2);
+    slice = slice.extendIn(dimensions);
+    let zerosToAppend = Array(dimensions - 1).fill(0);
+    slice.transform(Matrix.translation(radius + distanceFromTheCenter, ...zerosToAppend));
+    let lastCoordinate = dimensions - 1;
+    
+    for(let i=0; i<2*complexity; i++){
+      let stepAngle = Math.PI/complexity;
+      let rotationAroundCenter = Matrix.filterFromAllRotations(dimensions, stepAngle, [[0, lastCoordinate]], PointND.origin(dimensions).coordinates);
+      slice.transform(...rotationAroundCenter);
+      vertices = vertices.concat(slice.vertices);
+    }
+    return vertices;
   }
 }
 function oppositeVector(vector){
@@ -407,12 +445,25 @@ function tic(){
 function renderEnvironment(){
   context.clearRect(0,0,window.innerWidth,window.innerHeight);
   const DIMENSIONS = 4;
-  let sphere = new Hypersphere(DIMENSIONS, 2);
-  console.log(sphere);
-  let rotationMatrices = Matrix.allRotations(DIMENSIONS, angle, sphere.barycenter().coordinates);
+  let torus = new Torus(DIMENSIONS, 0.3, 0.5, 10);
+  let sphere = new Hypersphere(DIMENSIONS, 0.3, 10);
+  let cube = new Hypercube(DIMENSIONS, 0.5);
+  let simplex = new Simplex(DIMENSIONS, 0.5);
+  let rotationMatrices = Matrix.allRotations(DIMENSIONS, angle, torus.barycenter().coordinates);
+  
+  cube.transform(Matrix.translation(2, ...Array(DIMENSIONS - 1).fill(0)));
+  simplex.transform(Matrix.translation(-2, ...Array(DIMENSIONS - 1).fill(0)));
+  torus = torus.extendIn(DIMENSIONS);
+  torus.transform(...rotationMatrices);
   sphere.transform(...rotationMatrices);
-  console.log(sphere.vertices);
+  cube.transform(...rotationMatrices);
+  simplex.transform(...rotationMatrices);
+
+  torus.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
   sphere.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+  cube.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+  simplex.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+
   requestAnimationFrame(tic);
 }
 function resizeCanvas() {
