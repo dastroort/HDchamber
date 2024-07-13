@@ -1,116 +1,123 @@
 const canvas = document.querySelector("canvas");
 let context = canvas.getContext("2d");
 let angle = 0;
-const dims = {
+const screenDimensions = {
   "width": window.innerWidth,
   "height": 77.5/100 *window.innerHeight
 };
-canvas.width = dims.width;
-canvas.height = dims.height;
-
-function extendMatrix(matrix) {
-  let rows = matrix.length;
-  let cols = matrix[0].length;
-  // Add a row of zeros at the bottom
-  let newRow = Array(cols).fill(0);
-  newRow.push(1);
-  matrix.push(newRow);
-  // Add a column of zeros to the right, with a specific value in the last position
-  for (let i = 0; i < rows; i++) {
-    matrix[i].push(0);
-  }
-  return matrix;
-}
-
-function matrixPointMul(matrix, point){
-  let result = [];
-  if(matrix[0].length !== point.nthDimension) throw new Error(`Invalid dimensions: matrix ${matrix[0].length}, point.nthDimension ${point.nthDimension}`);
-  for (let i = 0; i < matrix.length; i++) {
-    let sum = 0;
-    for (let j = 0; j < matrix[0].length; j++) {
-      sum += matrix[i][j] * (j < point.nthDimension ? point.coordinates[j] : 1);
-    }
-    result[i] = sum;
-  }
-  return new PointND(...result);
-}
-
+canvas.width = screenDimensions.width;
+canvas.height = screenDimensions.height;
 const cameraDistance = 3;
 const SCALE = 200;
-
+function matrixPointMultiplication(matrix, point){
+  let resultCoordinates = [];
+  const matrixColumns = matrix[0].length, matrixRows = matrix.length;
+  if(matrixColumns !== point.nthDimension) throw new Error(`Matrix multiplication cannot exist:\nmatrix length:\t${cols},\npoint length:\t${point.nthDimension}`);
+  for (let row_i = 0; row_i < matrixRows; row_i++) {
+    let sum = 0;
+    for (let col_j = 0; col_j < matrixColumns; col_j++) sum += matrix[row_i][col_j] * point.coordinates[col_j];
+    resultCoordinates[row_i] = sum;
+  }
+  return new PointND(...resultCoordinates);
+}
 // helper methods to create a wellknown transformation matrix
 class Matrix {
   static translation(...vector) {
-    const rows = vector.length + 1, columns = rows;
-    const matrix = Array(rows);
-    for(let i=0; i<rows; i++){
-      matrix[i] = Array(columns);
-      for(let j=0; j<columns; j++){
-        if(i === j) matrix[i][j] = 1;
-        else if(j === columns-1) matrix[i][j] = vector[i]; 
-        else matrix[i][j] = 0;
+    const matrixRows = vector.length + 1, matrixColumns = matrixRows;
+    const matrix = Array(matrixRows);
+    for(let row_i=0; row_i<matrixRows; row_i++){
+      matrix[row_i] = Array(matrixColumns);
+      for(let col_j=0; col_j<matrixColumns; col_j++){
+        let isInDiagonal = row_i === col_j;
+        let isLastColumn = col_j === matrixColumns - 1;
+        if(isInDiagonal) matrix[row_i][col_j] = 1;
+        // This condition excludes the one above (isInDiagonal)
+        else if(isLastColumn) matrix[row_i][col_j] = vector[row_i];
+        else matrix[row_i][col_j] = 0;
       }
     }
+    // Deletes the last row. Now the matrix is regular always returns the correct n-dimenional point if it's multiplied by a point.
     matrix.pop();
     return matrix;
   }
-  
-  static allRotations(nthDimension, angle, center=PointND.origin(nthDimension).coordinates){
+  static rotationsInNthDimension(nthDimension, angle, center=PointND.origin(nthDimension).coordinates, filter="all", type="and"){
     let matrices = [];
-    let mainDiagonals = Matrix.#possibleRotationMainDiagonals(nthDimension);
-    for(let n=0; n<mainDiagonals.length; n++){
-      matrices[n] = [];
-      let sinesLeft = 2;
-      for(let i=0; i<mainDiagonals[0].length; i++){
-        matrices[n][i] = []
-        for(let j=0; j<mainDiagonals[0].length; j++){
-          if(i === j && mainDiagonals[n][j] === "cos") matrices[n][i][j] = Math.cos(angle);
-          else if(i === j && mainDiagonals[n][j] === "1") matrices[n][i][j] = 1;
-          else if(mainDiagonals[n][j] === "1" || mainDiagonals[n][i] === "1") matrices[n][i][j] = 0;
-          else if(sinesLeft === 2){
-            matrices[n][i][j] = -Math.sin(angle);
-            sinesLeft--;
-          } else {
-            matrices[n][i][j] = Math.sin(angle);
-            sinesLeft--;
-          }
+    const mainDiagonals = Matrix.#possibleRotationMainDiagonals(nthDimension);
+    const rowAndColumnSizes = mainDiagonals[0].length;
+    for(let mat_n=0; mat_n<mainDiagonals.length; mat_n++){
+      matrices[mat_n] = [];
+      const sinesLeft = [-Math.sin(angle), Math.sin(angle)];
+      for(let row_i=0; row_i<rowAndColumnSizes; row_i++){
+        matrices[mat_n][row_i] = [];
+        for(let col_j=0; col_j<rowAndColumnSizes; col_j++){
+          let isInDiagonal = row_i === col_j;
+          let thereIsCosine = mainDiagonals[mat_n][col_j] === "cos";
+          let thereIsOneInTheSameRow = mainDiagonals[mat_n][col_j] === "1";
+          let thereIsOneInTheSameColumn = mainDiagonals[mat_n][row_i] === "1";
+          if(isInDiagonal && thereIsCosine) matrices[mat_n][row_i][col_j] = Math.cos(angle);
+          else if(isInDiagonal && !thereIsCosine) matrices[mat_n][row_i][col_j] = 1;
+          else if(thereIsOneInTheSameRow || thereIsOneInTheSameColumn) matrices[mat_n][row_i][col_j] = 0;
+          else if(sinesLeft.length === 0) throw new Error("No sines left. Cannot insert anything.");
+          else {matrices[mat_n][row_i][col_j] = sinesLeft[0]; sinesLeft.shift();}
         }
       }
     }
+    let filteredMatrices = matrices;
+    if(filter !== "all") filteredMatrices = Matrix.#filterFromAllRotations(mainDiagonals, matrices, filter, type);
+    Matrix.#setRotationsAtCenter(filteredMatrices, center);
+    return filteredMatrices;
+  }
+  static #setRotationsAtCenter(matrices, center){
     matrices.unshift(Matrix.translation(...oppositeVector(center)));
     matrices.push(Matrix.translation(...center));
-    return matrices;
   }
-  
-  static filterFromAllRotations(nthDimension, angle, coordinateIndexPairsInvolved, center=PointND.origin(nthDimension).coordinates, type="and"){
-    let matrices = Matrix.allRotations(nthDimension, angle, center);
-    matrices.pop(); matrices.shift(); // excluding the two translation matrices
-    let mainDiagonals = Matrix.#possibleRotationMainDiagonals(nthDimension);
+  static #filterFromAllRotations(mainDiagonals, matrices, filter, type="and"){
     let filteredMatrices = [];
     // the array numbers are referred to those rotation which transforms the all the coordinates from 0 to n-1 has a variable angle
-    for(let n=0; n<coordinateIndexPairsInvolved.length; n++){
-      if(coordinateIndexPairsInvolved[0].length !== 2) throw new Error("Invalid length for a coordinate pair");
-      let x = coordinateIndexPairsInvolved[n][0];
-      let y = coordinateIndexPairsInvolved[n][1];
-      for(let i=0; i<matrices.length; i++){
-        if(filteredMatrices.includes(matrices[i])) continue;
+    let coordPairsWanted = Matrix.#translateFilter(filter);
+    if(coordPairsWanted.length === 2) coordPairsWanted = [coordPairsWanted];
+    for(let pair_n=0; pair_n<coordPairsWanted.length; pair_n++){
+      if(coordPairsWanted[pair_n].length !== 2) throw new Error("Invalid length for a coordinate pair.");
+      let firstCoord = coordPairsWanted[pair_n][0];
+      let secondCoord = coordPairsWanted[pair_n][1];
+      for(let mat_i=0; mat_i<matrices.length; mat_i++){
+        if(filteredMatrices.includes(matrices[mat_i])) continue;
         // the filter depends on type: if both of the coordinates must have cosine is "and", if at least one "or"
         let isValid = false;
+        let firstCoordInfluencedByCosine = mainDiagonals[mat_i][firstCoord] === "cos";
+        let secondCoordInfluencedByCosine = mainDiagonals[mat_i][secondCoord] === "cos";
         switch (type) {
-          case "and":
-            isValid = (mainDiagonals[i][x] === "cos" && mainDiagonals[i][y] === "cos");
-            break;
-          case "or":
-            isValid = (mainDiagonals[i][x] === "cos" || mainDiagonals[i][y] === "cos");
-            break;
+          case "and": isValid = (firstCoordInfluencedByCosine && secondCoordInfluencedByCosine); break;
+          case "or": isValid = (firstCoordInfluencedByCosine || secondCoordInfluencedByCosine); break;
           default: throw new Error("Invalid value for \"type\": " + type);
         }
-        if (isValid) filteredMatrices.push(matrices[i]);
+        if (isValid) filteredMatrices.push(matrices[mat_i]);
       }
     }
     return filteredMatrices;
   }
-
+  static #translateFilter(filter){
+    let pairs = filter.split(", ");
+    for(let pair_i=0; pair_i < pairs.length; pair_i++){
+      pairs[pair_i] = pairs[pair_i].split("_");
+      for(let coord_j=0; coord_j < pairs[pair_i].length; coord_j++){
+        let isALetter = /^[a-zA-Z]$/.test(pairs[pair_i][coord_j]);
+        let isNumbered = /^d\d+/.test(pairs[pair_i][coord_j]);
+        if(isALetter)
+          switch (pairs[pair_i][coord_j]) {
+            case "x": pairs[pair_i][coord_j] = 0; break;
+            case "y": pairs[pair_i][coord_j] = 1; break;
+            case "z": pairs[pair_i][coord_j] = 2; break;
+            case "w": pairs[pair_i][coord_j] = 3; break;
+            case "v": pairs[pair_i][coord_j] = 4; break;
+            case "u": pairs[pair_i][coord_j] = 5; break;
+            default: throw new Error("Something went wrong with a literal coordinate!");
+          }
+        else if(isNumbered) pairs[pair_i][coord_j] = pairs[pair_i][coord_j].slice(1)*1;
+      }
+    }
+    return pairs;
+  }
   static #possibleRotationMainDiagonals(nthDimension, mainDiagonal=[], cosinesLeft=2){
     if(nthDimension < cosinesLeft) throw new Error("Rotations cannot exist in "+nthDimension+" dimension/s.");
     if(nthDimension === 0){
@@ -161,8 +168,8 @@ class PointND{
     for(let i=0; i<matrices.length; i++){
       let matrixCols = matrices[i][0].length, matrixRows = matrices[i].length;
       if(matrixCols === this.nthDimension + 1 && matrixRows === matrixCols - 1)
-        transformed = matrixPointMul(matrices[i], new PointND(...transformed.coordinates, 1));
-      else transformed = matrixPointMul(matrices[i], transformed);
+        transformed = matrixPointMultiplication(matrices[i], new PointND(...transformed.coordinates, 1));
+      else transformed = matrixPointMultiplication(matrices[i], transformed);
     }
     return transformed;
   }
@@ -189,7 +196,7 @@ class PointND{
       } 
     }
     projectionMatrix.pop();
-    let projected = matrixPointMul(projectionMatrix, this);
+    let projected = matrixPointMultiplication(projectionMatrix, this);
     return projected.projectInto(dimensions, isOrto);
   }
 
@@ -198,8 +205,8 @@ class PointND{
     if(this.nthDimension > 2) throw new Error("This point has too many dimensions to be drawn. You should project it");
     if(this.nthDimension === 2){
       context.beginPath();
-      let positionX = scale*this.coordinates[0] + 5 + dims.width/2;
-      let positionY = scale*this.coordinates[1] + 5 + dims.height/2;
+      let positionX = scale*this.coordinates[0] + 5 + screenDimensions.width/2;
+      let positionY = scale*this.coordinates[1] + 5 + screenDimensions.height/2;
       let pointSize = 5 / (cameraDistance - depth);
       context.arc(positionX, positionY, pointSize, 0, 2*Math.PI, false);
       context.stroke();
@@ -390,9 +397,9 @@ class Torus extends MeshND{
     slice.transform(Matrix.translation(radius + distanceFromTheCenter, ...zerosToAppend));
     let lastCoordinate = dimensions - 1;
     
+    let stepAngle = Math.PI/complexity;
     for(let i=0; i<2*complexity; i++){
-      let stepAngle = Math.PI/complexity;
-      let rotationAroundCenter = Matrix.filterFromAllRotations(dimensions, stepAngle, [[0, lastCoordinate]], PointND.origin(dimensions).coordinates);
+      let rotationAroundCenter = Matrix.rotationsInNthDimension(dimensions, stepAngle, PointND.origin(dimensions).coordinates, `x_d${lastCoordinate}`);
       slice.transform(...rotationAroundCenter);
       vertices = vertices.concat(slice.vertices);
     }
@@ -445,13 +452,13 @@ function tic(){
 function renderEnvironment(){
   context.clearRect(0,0,window.innerWidth,window.innerHeight);
   const DIMENSIONS = 4;
-  let torus = new Torus(DIMENSIONS, 0.3, 0.5, 10);
+  let torus = new Torus(DIMENSIONS, 0.5, undefined, 10);
   let sphere = new Hypersphere(DIMENSIONS, 0.3, 10);
-  let cube = new Hypercube(DIMENSIONS, 0.5);
+  let cube = new Hypercube(DIMENSIONS, 2);
   let simplex = new Simplex(DIMENSIONS, 0.5);
-  let rotationMatrices = Matrix.allRotations(DIMENSIONS, angle, torus.barycenter().coordinates);
+  let rotationMatrices = Matrix.rotationsInNthDimension(DIMENSIONS, angle, cube.barycenter().coordinates);
   
-  cube.transform(Matrix.translation(2, ...Array(DIMENSIONS - 1).fill(0)));
+  // cube.transform(Matrix.translation(2, ...Array(DIMENSIONS - 1).fill(0)));
   simplex.transform(Matrix.translation(-2, ...Array(DIMENSIONS - 1).fill(0)));
   torus = torus.extendIn(DIMENSIONS);
   torus.transform(...rotationMatrices);
@@ -460,14 +467,14 @@ function renderEnvironment(){
   simplex.transform(...rotationMatrices);
 
   torus.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
-  sphere.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
-  cube.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
-  simplex.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+  // sphere.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+  // cube.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+  // simplex.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
 
   requestAnimationFrame(tic);
 }
 function resizeCanvas() {
-  dims.width = window.innerWidth;
+  screenDimensions.width = window.innerWidth;
   context = canvas.getContext("2d");
   context.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
   tic(); // Redraw the scene
