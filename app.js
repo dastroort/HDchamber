@@ -1,6 +1,5 @@
 const canvas = document.querySelector("canvas");
 let context = canvas.getContext("2d");
-let angle = 0;
 const screenDimensions = {
   "width": window.innerWidth,
   "height": 77.5/100 *window.innerHeight
@@ -12,10 +11,11 @@ const SCALE = 200;
 function matrixPointMultiplication(matrix, point){
   let resultCoordinates = [];
   const matrixColumns = matrix[0].length, matrixRows = matrix.length;
-  if(matrixColumns !== point.nthDimension) throw new Error(`Matrix multiplication cannot exist:\nmatrix length:\t${cols},\npoint length:\t${point.nthDimension}`);
+  if(matrixColumns !== point.nthDimension) throw new Error(`Matrix multiplication cannot exist:\nmatrix length:\t${matrixColumns},\npoint length:\t${point.nthDimension}`);
   for (let row_i = 0; row_i < matrixRows; row_i++) {
     let sum = 0;
     for (let col_j = 0; col_j < matrixColumns; col_j++) sum += matrix[row_i][col_j] * point.coordinates[col_j];
+    if(isNaN(sum)) throw new Error("sum is NaN");
     resultCoordinates[row_i] = sum;
   }
   return new PointND(...resultCoordinates);
@@ -40,13 +40,13 @@ class Matrix {
     matrix.pop();
     return matrix;
   }
-  static rotationsInNthDimension(nthDimension, angle, center=PointND.origin(nthDimension).coordinates, filter="all", type="and"){
+  static rotationsInNthDimension(nthDimension, angles, center=PointND.origin(nthDimension).coordinates, filter="all", type="and"){
     let matrices = [];
     const mainDiagonals = Matrix.#possibleRotationMainDiagonals(nthDimension);
     const rowAndColumnSizes = mainDiagonals[0].length;
     for(let mat_n=0; mat_n<mainDiagonals.length; mat_n++){
       matrices[mat_n] = [];
-      const sinesLeft = [-Math.sin(angle), Math.sin(angle)];
+      const sinesLeft = [-Math.sin(angles[mat_n]), Math.sin(angles[mat_n])];
       for(let row_i=0; row_i<rowAndColumnSizes; row_i++){
         matrices[mat_n][row_i] = [];
         for(let col_j=0; col_j<rowAndColumnSizes; col_j++){
@@ -54,7 +54,7 @@ class Matrix {
           let thereIsCosine = mainDiagonals[mat_n][col_j] === "cos";
           let thereIsOneInTheSameRow = mainDiagonals[mat_n][col_j] === "1";
           let thereIsOneInTheSameColumn = mainDiagonals[mat_n][row_i] === "1";
-          if(isInDiagonal && thereIsCosine) matrices[mat_n][row_i][col_j] = Math.cos(angle);
+          if(isInDiagonal && thereIsCosine) matrices[mat_n][row_i][col_j] = Math.cos(angles[mat_n]);
           else if(isInDiagonal && !thereIsCosine) matrices[mat_n][row_i][col_j] = 1;
           else if(thereIsOneInTheSameRow || thereIsOneInTheSameColumn) matrices[mat_n][row_i][col_j] = 0;
           else if(sinesLeft.length === 0) throw new Error("No sines left. Cannot insert anything.");
@@ -75,7 +75,6 @@ class Matrix {
     let filteredMatrices = [];
     // the array numbers are referred to those rotation which transforms the all the coordinates from 0 to n-1 has a variable angle
     let coordPairsWanted = Matrix.#translateFilter(filter);
-    if(coordPairsWanted.length === 2) coordPairsWanted = [coordPairsWanted];
     for(let pair_n=0; pair_n<coordPairsWanted.length; pair_n++){
       if(coordPairsWanted[pair_n].length !== 2) throw new Error("Invalid length for a coordinate pair.");
       let firstCoord = coordPairsWanted[pair_n][0];
@@ -135,8 +134,20 @@ class Matrix {
       ...Matrix.#possibleRotationMainDiagonals(nthDimension - 1, mainDiagonal.concat("1"), cosinesLeft)
     ]
     else dispositions = [...Matrix.#possibleRotationMainDiagonals(nthDimension - 1, mainDiagonal.concat("1"), cosinesLeft)];
-    // if( dispositions.length !== actualDispositions) throw new Error("Something went wrong: in "+nthDimension+" dimensions there are not "+dispositions.length+" rotations");
-    return dispositions;
+
+    // this sorting is important: it reorders matrices grouping them per dimension, like we used to:
+    // xy -> at least second dimension
+    // xz, yz -> at least third dimension
+    // xw, yw, zw -> at least fourth dimension ...
+    return dispositions.sort((a, b) => {
+      let firstIndexOfCos = a.indexOf("cos");
+      let secondIndexOfCos = a.indexOf("cos", 1 + firstIndexOfCos);
+      let firstSum = Math.pow(2, firstIndexOfCos) + Math.pow(2, secondIndexOfCos);
+      firstIndexOfCos = b.indexOf("cos");
+      secondIndexOfCos = b.indexOf("cos", 1 + firstIndexOfCos);
+      let secondSum = Math.pow(2, firstIndexOfCos) + Math.pow(2, secondIndexOfCos);
+      return firstSum - secondSum;
+    });
   }
   
   static scale(...factors){
@@ -171,7 +182,7 @@ class PointND{
         transformed = matrixPointMultiplication(matrices[i], new PointND(...transformed.coordinates, 1));
       else transformed = matrixPointMultiplication(matrices[i], transformed);
     }
-    return transformed;
+    return new PointND(...transformed.coordinates);
   }
 
   convertTo(dimensions){
@@ -186,13 +197,14 @@ class PointND{
     if(dimensionsLeft === 0) return this;
 
     let perspectiveFactor = 1 / (cameraDistance - this.coordinates[this.coordinates.length - 1]);
-    if(isOrto) perspectiveFactor = 1;
     let projectionMatrix = [];
     for(let i=0; i<this.nthDimension; i++){
       projectionMatrix[i] = [];
       for(let j=0; j<this.nthDimension; j++){
-        if(i === j && i !== this.nthDimension - 1) projectionMatrix[i][j] = perspectiveFactor;
-        else projectionMatrix[i][j] = 0;
+        if(i === j && i !== this.nthDimension - 1){
+          if(this.nthDimension === 3 && isOrto) perspectiveFactor = 1;
+          projectionMatrix[i][j] = perspectiveFactor;
+        } else projectionMatrix[i][j] = 0;
       } 
     }
     projectionMatrix.pop();
@@ -236,11 +248,11 @@ class PointND{
 }
 
 class MeshND{
-  constructor(vertices){
+  constructor(vertices, sides=[]){
     this.vertices = vertices;
+    this.sides = sides;
     this.nthDimension = this.vertices[0].nthDimension;
   }
-
   barycenter(){
     let barycenterCoords = [];
     let sum = 0;
@@ -253,15 +265,17 @@ class MeshND{
     }
     return new PointND(...barycenterCoords);
   }
-  
-  render(scale=SCALE * Math.pow(3, DIMENSIONS - 3)){
+  render(scale=SCALE * Math.pow(3, DIMENSIONS - 3), isOrto=false){
     this.vertices.forEach(vertex => {
-      let projectedVertex = vertex.projectInto(2);
+      let projectedVertex = vertex.projectInto(2, isOrto);
       let sampleForHigherDimension = undefined;
       let depth = 1;
       if(vertex.nthDimension > 3) sampleForHigherDimension = vertex;
       if(vertex.nthDimension > 2) depth = vertex.coordinates[2];
-      projectedVertex.draw(depth, scale, vertex);
+      projectedVertex.draw(depth, scale, sampleForHigherDimension);
+    });
+    this.sides.forEach(side => {
+      side.render(scale, isOrto);
     });
   }
   extendIn(dimensions){
@@ -270,44 +284,115 @@ class MeshND{
     if(amountOfZeros === 0) return this;
     let zerosToAppend = Array(amountOfZeros).fill(0);
     this.vertices = this.vertices.map(vertex => new PointND(...vertex.coordinates.concat(zerosToAppend)));
-    return new MeshND(this.vertices);
+    this.sides = this.sides.map(segment => {
+      let extendedStart = new PointND(...segment.start.coordinates, ...zerosToAppend);
+      let extendedEnd = new PointND(...segment.end.coordinates, ...zerosToAppend);
+      let extendedSegment = new SegmentND(extendedStart, extendedEnd);
+      return extendedSegment;
+    });
+    return new MeshND(this.vertices, this.sides);
   }
 
   transform(...matrices){
     for(let i=0; i<this.vertices.length; i++) this.vertices[i] = this.vertices[i].transform(...matrices);
-    return this;
+    for(let j=0; j<this.sides.length; j++) this.sides[j] = this.sides[j].transform(...matrices);
+    return new MeshND(this.vertices, this.sides);
   }
 }
+class SegmentND{
+  constructor(...extremes){
+    if(extremes.length !== 2) throw new Error("A segment has not got "+extremes.length+" extremes");
+    if(extremes[0].nthDimension !== extremes[1].nthDimension) throw new Error("Watch out! You put two different PointND", extremes[0].coordinates, extremes[1].coordinates);
+    this.nthDimension = extremes[0].nthDimension;
+    this.extremes = extremes;
+    this.start = extremes[0]; this.end = extremes[1];
+  }
+  render(scale=SCALE * Math.pow(3, DIMENSIONS - 3), isOrto=false){
+    let hyperdepth1 = undefined;
+    let hyperdepth2 = undefined;
+    if(this.nthDimension > 3){
+      hyperdepth1 = this.start.coordinates[this.start.coordinates.length - 1];
+      hyperdepth2 = this.end.coordinates[this.end.coordinates.length - 1];
+    }
+    let depth = 1;
+    if(this.nthDimension > 2){
+      this.start = this.start.projectInto(3, isOrto);
+      this.end = this.end.projectInto(3, isOrto);
+      depth = (this.start.coordinates[2] + this.end.coordinates[2])/2;
+    }
+    this.start = this.start.projectInto(2, isOrto);
+    this.end = this.end.projectInto(2, isOrto);
+    let positionX = scale*this.start.coordinates[0] + 5 + screenDimensions.width/2;
+    let positionY = scale*this.start.coordinates[1] + 5 + screenDimensions.height/2;
+    let positionX_1 = scale*this.end.coordinates[0] + 5 + screenDimensions.width/2;
+    let positionY_1 = scale*this.end.coordinates[1] + 5 + screenDimensions.height/2;
+    context.beginPath();
+    context.moveTo(positionX, positionY);
+    context.lineTo(positionX_1, positionY_1);
+    let color = `hsla(270, 9.8%, 80%, ${150 / (cameraDistance - depth)}%)`;
+    context.strokeStyle = color;
+    context.lineWidth = 3 * (DIMENSIONS - 2) / (2*cameraDistance - 3*(DIMENSIONS - 2)*depth);
+    
+    if(hyperdepth1 !== undefined && hyperdepth2 !== undefined){
+      let hue1 = 36 * hyperdepth1 + 270; // Hue secondo i commenti
+      let hue2 = 36 * hyperdepth2 + 270; // Hue secondo i commenti
+      
+      // Create a linear gradient
+      const gradient = context.createLinearGradient(positionX, positionY, positionX_1, positionY_1);
+      gradient.addColorStop(0, `hsla(${hue1}, 100%, 50%, ${150 / (cameraDistance - depth)}%)`);
+      gradient.addColorStop(1, `hsla(${hue2}, 100%, 50%, ${150 / (cameraDistance - depth)}%)`);
 
+      context.strokeStyle = gradient;
+    }
+    
+    context.stroke();
+    context.closePath();
+  }
+  transform(...matrices){
+    return new SegmentND(this.start.transform(...matrices), this.end.transform(...matrices));
+  }
+}
 class Hypercube extends MeshND{
   constructor(dimensions, side){
-    const vertices = Hypercube.#createHypercube(dimensions, side);
-    super(vertices);
+    let vertices = Hypercube.#createHypercubeVertices(dimensions, side);
+    let sides = Hypercube.#createHypercubeSides(dimensions, vertices);
+    super(vertices, sides);
   }
-
-  static #createHypercube(dimensions, side, pointstamp=[]){
-    if(dimensions === 0){
-      return [ new PointND(...pointstamp) ];
-    }else return [
-      ...this.#createHypercube(dimensions - 1, side, pointstamp.concat(side/2)),
-      ...this.#createHypercube(dimensions - 1, side, pointstamp.concat(-side/2))
+  static #createHypercubeVertices(dimensions, side, pointstamp=[]){
+    if(dimensions === 0) return [ new PointND(...pointstamp) ];
+    return [
+      ...this.#createHypercubeVertices(dimensions - 1, side, pointstamp.concat(side/2)),
+      ...this.#createHypercubeVertices(dimensions - 1, side, pointstamp.concat(-side/2))
     ];
   }
+  // group vertices in segments when they are sorted like binary numbers (1,1,1), (1,1,-1) (1,-1,1) (1,-1,-1)...
+  static #createHypercubeSides(dimensions, vertices){
+    let sides = [];
+    let verticesUsed = [];
+    for(let i=0; i<dimensions; i++){
+      verticesUsed = [];
+      for(let j=0; j<vertices.length; j++){
+        if(verticesUsed.includes(j)) continue;
+        sides.push(new SegmentND(vertices[j], vertices[j+Math.pow(2,i)]));
+        verticesUsed.push(j, j+Math.pow(2,i));
+      }
+    }
+    return sides;
+  }
 }
-
 class Simplex extends MeshND{
   constructor(dimensions, side){
     const vertices = Simplex.#createSimplex(dimensions, side);
-    super(vertices);
+    const sides = Simplex.#createSimplexSides(dimensions, vertices);
+    super(vertices, sides);
   }
-
   static #createSimplex(dimensions, side, pointstamp=[]){
     if(dimensions === 1){
       return (new Hypercube(1, side)).vertices;
     } else {
       let oldSimplex = new Simplex(dimensions - 1, side, pointstamp);
       let oldBarycenter = oldSimplex.barycenter();
-      let newVertex = new PointND(...oldBarycenter.coordinates, Math.sqrt(side**side - oldBarycenter.distanceSquare(oldSimplex.vertices[0])));
+      let newVertex = new PointND(...oldBarycenter.coordinates, Math.sqrt(side*side - oldBarycenter.distanceSquare(oldSimplex.vertices[0])));
       let vertices = [ ...oldSimplex.vertices, newVertex ];
       let simplex = new MeshND(vertices);
       for(let i=0; i<vertices.length; i++){
@@ -321,89 +406,124 @@ class Simplex extends MeshND{
       return vertices;
     }
   }
-}
-class Orthoplex extends MeshND{
-  constructor(dimensions, side){
-    const vertices = Orthoplex.#createOrthoplex(dimensions, side);
-    super(vertices);
-  }
-
-  static #createOrthoplex(dimensions, side, pointstamp=[]){
-    if(dimensions === 0){
-      return [ new PointND(...pointstamp) ];
-    }else if(!pointstamp.includes(side*Math.SQRT1_2) && !pointstamp.includes(-side*Math.SQRT1_2) && dimensions === 1)
-      return [...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(side*Math.SQRT1_2)),
-      ...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(-side*Math.SQRT1_2))]
-    else if(!pointstamp.includes(side*Math.SQRT1_2) && !pointstamp.includes(-side*Math.SQRT1_2))
-      return [
-        ...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(side*Math.SQRT1_2)),
-        ...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(-side*Math.SQRT1_2)),
-        ...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(0))
-      ];
-    else return [...this.#createOrthoplex(dimensions - 1, side, pointstamp.concat(0))];
+  static #createSimplexSides(dimensions, vertices){
+    let sides = [];
+    let verticesUsed = [];
+    for(let i=0; i<dimensions; i++){
+      for(let j=0; j<vertices.length; j++){
+        if(i === j) continue;
+        if(verticesUsed.includes(j)) continue;
+        sides.push(new SegmentND(vertices[i], vertices[j]));
+        verticesUsed.push(i);
+      }
+    }
+    return sides;
   }
 }
-
 class Hypersphere extends MeshND{
   constructor(dimensions, radius, complexity=10){
-    const vertices = Hypersphere.#createHypersphere(dimensions, radius, complexity);
-    super(vertices);
+    const hypersphere = Hypersphere.#createHypersphere(dimensions, radius, complexity);
+    // const sides = Hypersphere.#createHypersphereSides(vertices, complexity);
+    super(hypersphere.vertices, hypersphere.sides);
   }
   // Funzione ricorsiva per la creazione di ipersfere
-static #createHypersphere(dimensions, radius, complexity, pointstamp=[]) {
-  let stepAngle = Math.PI/complexity;
-  if (dimensions === 1) {
-    return new Hypercube(1, radius).vertices;
-  }
-  if (dimensions === 2) {
-    // Caso base: restituisci un array con un singolo punto
-    return Hypersphere.#createCircle(radius, stepAngle, pointstamp);
-  } else {
-    // Caso ricorsivo: costruisci i punti utilizzando le sezioni di ipersfere di dimensioni inferiori
-    let points = [];
-    for (let i=0; i<=complexity; i++){
-      let w = radius*(Math.cos(Math.PI - i*Math.PI/complexity));
-      let oldHypersphereRadius = Math.sqrt(radius * radius - w * w);
-      let oldHypersphere = Hypersphere.#createHypersphere(dimensions - 1, oldHypersphereRadius, complexity, pointstamp.concat(w));
-      points.push(...oldHypersphere);
+  static #createHypersphere(dimensions, radius, complexity, pointstamp=[]) {
+    let stepAngle = Math.PI/complexity;
+    if (dimensions === 1) {
+      return {vertices: (new Hypercube(1, radius)).vertices, sides: []};
     }
-    return points;
+    if (dimensions === 2) {
+      // Caso base: restituisci un array con un singolo punto
+      return Hypersphere.#createCircle(radius, stepAngle, pointstamp);
+    } else {
+      // Caso ricorsivo: costruisci i punti utilizzando le sezioni di ipersfere di dimensioni inferiori
+      let vertices = [];
+      let sides = [];
+      let previousHypersphereSection = undefined; 
+      for (let i=0; i<=complexity; i++){
+        let w = radius*(Math.cos(Math.PI - i*Math.PI/complexity));
+        let hypersphereSectionRadius = Math.sqrt(radius * radius - w * w);
+        let hypersphereSection = Hypersphere.#createHypersphere(dimensions - 1, hypersphereSectionRadius, complexity, pointstamp.concat(w));
+        vertices.push(...hypersphereSection.vertices);
+        sides.push(...hypersphereSection.sides, ...Hypersphere.connectTwoAdiacentHypersphereSections(previousHypersphereSection, hypersphereSection));
+        previousHypersphereSection = hypersphereSection;
+      }
+      // connect adiacent sections
+      return {vertices: vertices, sides: sides};
+    }
   }
-}
+  static connectTwoAdiacentHypersphereSections(previousHypersphereSection, hypersphereSection){
+    if(previousHypersphereSection === undefined) return [];
+    let sides = [];
+    for(let v=0; v<hypersphereSection.vertices.length; v++) sides.push(new SegmentND(previousHypersphereSection.vertices[v], hypersphereSection.vertices[v]));
+    return sides;
+  }
   // Function to create a 2D circle of points, given radius and a stepangle.
-  static #createCircle(radius, stepAngle, pointstamp=[]) {
+  static #createCircle(radius, stepAngle, pointstamp=[]){
+    const vertices = Hypersphere.#createCircleVertices(radius, stepAngle, pointstamp);
+    const sides = Hypersphere.#createCircleSides(vertices);
+    const circle = { vertices: vertices, sides: sides };
+    return circle;
+  }
+  static #createCircleVertices(radius, stepAngle, pointstamp=[]) {
     let points = [];
     for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
       let x = radius * Math.cos(theta);
       let y = radius * Math.sin(theta);
       let newPoint = new PointND(x, y, ...pointstamp);
-      if(!points.includes(newPoint)) points.push(newPoint);
+      points.push(newPoint);
     }
     return points;
   }
+  static #createCircleSides(vertices){
+    let sides = [];
+    for(let v=0; v<vertices.length; v++){
+      if(v === vertices.length - 1) sides.push(new SegmentND(vertices[v], vertices[0]));
+      else sides.push(new SegmentND(vertices[v], vertices[v+1]));
+    }
+    return sides;
+  }
 }
-
+class Orthoplex extends MeshND{
+  constructor(dimensions, side){
+    // thinking an orthoplex as a hypersphere of complexity 2
+    const radius = side * Math.SQRT1_2;
+    const orthoplex = new Hypersphere(dimensions, radius, 2);
+    super(orthoplex.vertices, orthoplex.sides);
+  }
+}
 class Torus extends MeshND{
   constructor(dimensions, radius, distanceFromTheCenter=2*radius, complexity=10){
-    const vertices = Torus.#createTorus(dimensions, radius, distanceFromTheCenter, complexity);
-    super(vertices);
+    const torus = Torus.#createTorusVertices(dimensions, radius, distanceFromTheCenter, complexity);
+    super(torus.vertices, torus.sides);
   }
-
-  static #createTorus(dimensions, radius, distanceFromTheCenter, complexity){
+  static #createTorusVertices(dimensions, radius, distanceFromTheCenter, complexity){
     let vertices = [];
+    let sides = [];
     let slice = new Hypersphere(dimensions - 1, radius, complexity/2);
-    slice = slice.extendIn(dimensions);
+    slice.extendIn(dimensions);
     let zerosToAppend = Array(dimensions - 1).fill(0);
     slice.transform(Matrix.translation(radius + distanceFromTheCenter, ...zerosToAppend));
     let lastCoordinate = dimensions - 1;
     
+    let previousSlice = undefined;
     let stepAngle = Math.PI/complexity;
     for(let i=0; i<2*complexity; i++){
-      let rotationAroundCenter = Matrix.rotationsInNthDimension(dimensions, stepAngle, PointND.origin(dimensions).coordinates, `x_d${lastCoordinate}`);
-      slice.transform(...rotationAroundCenter);
-      vertices = vertices.concat(slice.vertices);
+      let rotationAroundCenter = Matrix.rotationsInNthDimension(dimensions, Array(nCr(DIMENSIONS, 2)).fill(stepAngle), PointND.origin(dimensions).coordinates, `x_d${lastCoordinate}`);
+      slice = slice.transform(...rotationAroundCenter);
+      vertices.push(...slice.vertices);
+      sides.push(...slice.sides);
     }
-    return vertices;
+    sides.push(...Torus.#connectTwoAdiacentTorusSections(slice, vertices));
+    return {vertices: vertices, sides: sides};
+  }
+  static #connectTwoAdiacentTorusSections(sliceSample, torusVertices){
+    let sides = [];
+    for(let v=sliceSample.vertices.length; v<torusVertices.length; v+=1){
+      if(v > torusVertices.length - 1 - sliceSample.vertices.length) sides.push(new SegmentND(torusVertices[v], torusVertices[(v + sliceSample.vertices.length)%torusVertices.length]))
+      sides.push(new SegmentND(torusVertices[v - sliceSample.vertices.length], torusVertices[v]));
+    }
+    return sides;
   }
 }
 function oppositeVector(vector){
@@ -437,11 +557,28 @@ function create24Cell() {
 
 
 let initialTime = Date.now();
-const speed = 0.6 // rad/s
+const speed = Math.PI / 4 // rad/s
 let position = 0;
 
+function hcf(n, m){
+  if(m === 0) return n;
+  let remainder = n % m;
+  return hcf(m, remainder);
+}
+function lcm(n, m){
+  return n * m / hcf(n, m);
+}
+
+function factorial(n){
+  if(n===0 || n===1) return 1;
+  return n*factorial(n-1);
+}
+function nCr(n, r){
+  return factorial(n) / (factorial(r) * factorial(n-r));
+}
+let angle = 0;
 function tic(){
-  angle = (angle > 2*Math.PI) ? angle - 2*Math.PI : angle;
+  angle = (angle > 2*lcm(6, 20)*Math.PI) ? angle - 2*lcm(1, 6)*Math.PI : angle;
   let lastTime = Date.now();
   let deltaTime = lastTime - initialTime;
   angle += speed * deltaTime / 1000;
@@ -449,27 +586,27 @@ function tic(){
   
   renderEnvironment();
 }
+const DIMENSIONS = 4;
 function renderEnvironment(){
   context.clearRect(0,0,window.innerWidth,window.innerHeight);
-  const DIMENSIONS = 4;
-  let torus = new Torus(DIMENSIONS, 0.5, undefined, 10);
-  let sphere = new Hypersphere(DIMENSIONS, 0.3, 10);
+  // let torus = new Torus(DIMENSIONS, 0.5, undefined, 10);
+  // let sphere = new Hypersphere(DIMENSIONS, 2, 10);
   let cube = new Hypercube(DIMENSIONS, 2);
-  let simplex = new Simplex(DIMENSIONS, 0.5);
-  let rotationMatrices = Matrix.rotationsInNthDimension(DIMENSIONS, angle, cube.barycenter().coordinates);
+  // let simplex = new Simplex(DIMENSIONS, 1.5);
+  let rotationMatrices = Matrix.rotationsInNthDimension(DIMENSIONS, [angle, angle, -0.5*angle, 0*angle, angle/12, 0*angle], PointND.origin(DIMENSIONS).coordinates, "all");
   
-  // cube.transform(Matrix.translation(2, ...Array(DIMENSIONS - 1).fill(0)));
-  simplex.transform(Matrix.translation(-2, ...Array(DIMENSIONS - 1).fill(0)));
-  torus = torus.extendIn(DIMENSIONS);
-  torus.transform(...rotationMatrices);
-  sphere.transform(...rotationMatrices);
+  // cube.transform(Matrix.translation(1.5, ...Array(DIMENSIONS - 1).fill(0)));
+  // simplex.transform(Matrix.translation(-2, ...Array(DIMENSIONS - 1).fill(0)));
+  // torus = torus.extendIn(DIMENSIONS);
+  // torus.transform(...rotationMatrices);
+  // sphere.transform(...rotationMatrices);
   cube.transform(...rotationMatrices);
-  simplex.transform(...rotationMatrices);
+  // simplex.transform(...rotationMatrices);
 
-  torus.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
-  // sphere.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
-  // cube.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
-  // simplex.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+  // torus.render(SCALE * Math.pow(3, DIMENSIONS - 3)); // A sample point with a coordinate "1" is divided by 3 for each projection
+  // sphere.render(SCALE * Math.pow(3, DIMENSIONS - 3), false); // A sample point with a coordinate "1" is divided by 3 for each projection
+  cube.render(undefined); // A sample point with a coordinate "1" is divided by 3 for each projection
+  // simplex.render(SCALE * Math.pow(3, DIMENSIONS - 3), true); // A sample point with a coordinate "1" is divided by 3 for each projection
 
   requestAnimationFrame(tic);
 }

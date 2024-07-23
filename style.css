@@ -48,8 +48,8 @@ legend *{margin: auto;}
   height: 10px;
   max-width: 300px;
   border-radius: 3px;
-  background: linear-gradient(to right, hsl(230, 100%, 50%), hsl(310, 100%, 50%));
-  opacity: .5;
+  background: linear-gradient(to right, hsl(200, 100%, 50%), hsl(250, 100%, 50%), hsl(300, 100%, 50%), hsl(0, 100%, 50%));
+  opacity: .7;
 }
 
 @media screen and (max-width:800px) {
