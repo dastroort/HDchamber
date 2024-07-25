@@ -30,6 +30,7 @@ ul :not(:first-child) .button{margin-top: 0}
 .buttons.left{float: left;}
 .buttons.right{float: right;}
 .button i{height: 45px; display: flex; scale:0.9; justify-content: center; align-items: center;}
+.button img{display: flex; justify-content: center; align-items: center; margin: auto}
 main{position: absolute;}
 
 
