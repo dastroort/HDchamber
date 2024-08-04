@@ -1,0 +1,59 @@
+[
+  {
+    "meshName": "4-Hypercube",
+    "description": "The 4-Hypercube, or the Tesseract, is a four-dimensional analog of the cube and part of the hypercube family. Composed of eight cubic cells, it has 16 vertices, 32 edges, and 24 square faces, challenging our three-dimensional intuition. This complexity makes it a subject of interest in mathematics, art, and literature, symbolizing the mysteries and possibilities of higher-dimensional spaces. The tesseract’s representation of the fourth dimension continues to inspire wonder about dimensions beyond our own.",
+    "dimensions": 4,
+    "faces": 24,
+    "edges": 32,
+    "vertices": 16,
+    "properties": {
+      "symmetryGroup": "B4",
+      "dual": "4-orthoplex",
+      "relatedShapes": ["cube", "octahedron"]
+    }
+  },
+  {
+    "meshName": "4-Sphere",
+    "description": "The 4-Sphere, also known as the hypersphere or glome, is the four-dimensional analog of a sphere. It consists of all points equidistant from a central point in four-dimensional space. With 4D volume and surface area properties that extend those of a 3D sphere, the 4-sphere challenges our ability to visualize higher dimensions. Its elegant symmetry and properties make it a key object of study in higher-dimensional geometry and theoretical physics.",
+    "dimensions": 4,
+    "properties": {
+      "symmetryGroup": "O(4)",
+      "relatedShapes": ["sphere", "circle"]
+    }
+  },
+  {
+    "meshName": "4-Simplex",
+    "description": "The 4-Simplex, or 5-cell, is the simplest possible convex regular 4-polytope, the four-dimensional analog of a tetrahedron. Composed of 5 tetrahedral cells, it has 5 vertices, 10 edges, and 10 triangular faces. The 4-simplex's geometric simplicity and symmetry make it fundamental in the study of higher-dimensional spaces and in various mathematical fields, including topology and geometry.",
+    "dimensions": 4,
+    "faces": 10,
+    "edges": 10,
+    "vertices": 5,
+    "properties": {
+      "symmetryGroup": "A4",
+      "dual": "4-simplex",
+      "relatedShapes": ["tetrahedron", "triangle"]
+    }
+  },
+  {
+    "meshName": "4-Torus",
+    "description": "The 4-Torus, or the spherical torus, is a four-dimensional object that generalizes the concept of a torus to higher dimensions. It can be thought of as a Cartesian product of two 2-spheres. The 4-torus's complex structure, involving intricate relationships between its components, is significant in various branches of mathematics, including topology and algebraic geometry, and finds applications in theoretical physics, particularly in string theory.",
+    "dimensions": 4,
+    "properties": {
+      "symmetryGroup": "T4",
+      "relatedShapes": ["torus", "2-sphere"]
+    }
+  },
+  {
+    "meshName": "4-Orthoplex",
+    "description": "The 4-Orthoplex, also known as the 16-cell, is a four-dimensional analog of the octahedron. Consisting of 16 tetrahedral cells, it has 8 vertices, 24 edges, and 32 triangular faces. The orthoplex’s high degree of symmetry and unique structure make it an important shape in higher-dimensional geometry and in studies of polytopes. Its dual relationship with the 4-hypercube is of particular interest in mathematical research.",
+    "dimensions": 4,
+    "faces": 32,
+    "edges": 24,
+    "vertices": 8,
+    "properties": {
+      "symmetryGroup": "B4",
+      "dual": "4-hypercube",
+      "relatedShapes": ["octahedron", "tesseract"]
+    }
+  }
+]

@@ -1,45 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>5-Cell Rotating in 4d</title>
-  <link rel="shortcut icon" href="#" type="image/x-icon">
-  <link rel="stylesheet" href="style.css">
-  <script src="https://kit.fontawesome.com/7fe70165d0.js" crossorigin="anonymous"></script>
-  <script type="module" defer src="geolib.js"></script>
-  <script type="module" defer src="app.js"></script>
-</head>
-<body>
-  <ul class="left buttons">
-    <li>
-      <a class="button" href="../../"><i class="fa-solid fa-angle-left"></i></a>
-    </li>
-    <li>
-      <button class="button help"><i class="fa-solid fa-arrow-rotate-left"></i></button>
-    </li>
-    <li>
-      <button class="button left"><i class="fa-solid fa-cube"></i></button>
-    </li>
-    <li>
-      <button id="perspective-switch-btn" class="button left"><img src="icons/orto_on.png" alt="orto_off"></button>
-    </li>
-  </ul>
-  <ul class="right buttons">
-    <li>
-      <button class="button help"><i class="fa-solid fa-question"></i></button>
-    </li>
-    <li>
-      <button class="button w-coordinate"><i class="fa-solid fa-w"></i></button>
-    </li>
-  </ul>
-  <main>
-    <h1>Un 5-Cell ruota in 4D</h1>
-    <canvas class="renderer"></canvas>
-    <legend>
-      <label for="...">Coordinata W</label>
-      <div class="bar"></div>
-    </legend>
-  </main>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HDchamber</title>
+    <link rel="shortcut icon" href="#" type="image/x-icon" />
+    <link rel="stylesheet" href="style.css" />
+    <script
+      src="https://kit.fontawesome.com/7fe70165d0.js"
+      crossorigin="anonymous"
+    ></script>
+    <script type="module" defer src="geolib.js"></script>
+    <script type="module" defer src="app.js"></script>
+  </head>
+  <body>
+    <ul class="left buttons">
+      <li>
+        <a class="button esc" href="../../"
+          ><i class="icon fa-solid fa-angle-left"></i
+        ></a>
+      </li>
+      <li>
+        <button class="button rotation-handler">
+          <img
+            class="icon"
+            src="./icons/rotation-icon.png"
+            alt="Rotation icon"
+          />
+        </button>
+      </li>
+      <li>
+        <button class="button shape-handler">
+          <i class="icon fa-solid fa-cube"></i>
+        </button>
+        <ul class="dropmenu"></ul>
+      </li>
+      <li>
+        <button class="button projection-mode">
+          <img class="icon" src="icons/orto_on.png" alt="orto_off" />
+        </button>
+      </li>
+    </ul>
+    <ul class="right buttons">
+      <li>
+        <button class="button info">
+          <i class="icon fa-solid fa-circle-info"></i>
+        </button>
+      </li>
+      <li>
+        <button class="button w-coordinate-mode">
+          <i class="icon fa-solid fa-w"></i>
+        </button>
+      </li>
+    </ul>
+    <main>
+      <h1>HDchamber</h1>
+      <canvas class="renderer"></canvas>
+      <legend>
+        <label for="...">W Coordinate</label>
+        <div class="legend-bar"></div>
+      </legend>
+    </main>
+  </body>
 </html>
