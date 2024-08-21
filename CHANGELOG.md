@@ -15,5 +15,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Everything!
 
-[unreleased]: https://github.com/olivierlacan/keep-a-changelog/compare/v1.0.0...HEAD
+[unreleased]: https://github.com/dastroort/hdchamber/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/dastroort/hdchamber/releases/tags/v1.0.0
