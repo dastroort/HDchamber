@@ -16,12 +16,12 @@
   <body>
     <ul class="left buttons">
       <li>
-        <a class="button esc" href="../../"
+        <a class="button esc" href="javascript:history.go(-1)"
           ><i class="icon fa-solid fa-angle-left"></i
         ></a>
       </li>
       <li>
-        <button class="button rotation-handler">
+        <button onclick="wait()" class="button rotation-handler">
           <img
             class="icon"
             src="./icons/rotation-icon.png"
@@ -43,12 +43,12 @@
     </ul>
     <ul class="right buttons">
       <li>
-        <button class="button info">
+        <button onclick="wait()" class="button info">
           <i class="icon fa-solid fa-circle-info"></i>
         </button>
       </li>
       <li>
-        <button class="button w-coordinate-mode">
+        <button onclick="wait()" class="button w-coordinate-mode">
           <i class="icon fa-solid fa-w"></i>
         </button>
       </li>
@@ -60,6 +60,13 @@
         <label for="...">W Coordinate</label>
         <div class="legend-bar"></div>
       </legend>
+      <span class="version" style="text-align:right; width:98%; margin:0 2%; display: inline-block;">v1.0.0</span>
     </main>
   </body>
+  <script>
+    // function to print wait for new version
+    function wait(){
+      alert('Wait for the next version for this functionality.');
+    }
+  </script>
 </html>
