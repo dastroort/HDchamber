@@ -76,7 +76,6 @@ shapesBtns.forEach(button => {
 });
 
 function tic(input) {
-  angle = (angle > 2 * lcm(6, 12) * Math.PI) ? angle - 2 * lcm(1, 12) * Math.PI : angle;
   let lastTime = Date.now();
   let deltaTime = lastTime - initialTime;
   angle += speed * deltaTime / 1000;
@@ -86,8 +85,20 @@ function tic(input) {
 function renderEnvironment(input) {
   const mesh = new (shapesMap.get(input))(DIMENSIONS);
   GEOLIB.uploadEnvironment();
-  let rotationMatrices = GEOLIB.Matrix.rotationsInNthDimension(DIMENSIONS, [angle, angle, 0.5 * angle, 0, angle / 12, 0 * angle, angle / 12, ...Array(nCr(9, 2) - 7).fill(angle / 3)], GEOLIB.PointND.origin(DIMENSIONS).coordinates, "all");
-  mesh.transform(...rotationMatrices);
+  // Fixed matrix problem: now only one multipurpose matrix is uploaded every time with matrix stamps.
+  const rotationMatrix = Array(DIMENSIONS).fill().map(() => Array(DIMENSIONS).fill(0));
+  const matrixStamps = ["xz", "xy", "yw", "zw"];
+  const angles = [angle, angle, 0.5*angle, 0.75*angle];
+  // Fixed angle problem: now every angle is normalized indipendently.
+  angles.forEach((theta, index, array) => {
+    array[index] = theta % (2 * Math.PI);
+  });
+  // :88
+  for(let i=0; i<matrixStamps.length; i++){
+    if (matrixStamps.length !== angles.length) throw new Error("Num of stamps and angles must be equal.");
+    GEOLIB.Matrix.uploadRotationMatrix(rotationMatrix, matrixStamps[i], angles[i]);
+    mesh.transform(rotationMatrix);
+  }
   mesh.render(isOrtoActivated);
 
   requestAnimationFrame(() => tic(input));

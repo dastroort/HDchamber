@@ -8,6 +8,7 @@ const DEFAULT_SIZE = 1.5;
 const DEFAULT_COMPLEXITY = 8;
 const cameraDistance = 3;
 const cameraZoom = 2;
+const axisIdentifiers = "xyzwvu";
 
 // No more for loops. Instead, forEach and reduce are used to improve readability and performance.
 // Time complexity: O(m * n) where m is the number of rows and n is the number of columns.
@@ -48,60 +49,41 @@ class Matrix {
     matrix.pop();
     return matrix;
   }
-  static rotationsInNthDimension(nthDimension, angles, center = PointND.origin(nthDimension).coordinates, filter = "all", type = "and") {
-    let matrices = [];
-    const mainDiagonals = Matrix.#possibleRotationMainDiagonals(nthDimension);
-    const rowAndColumnSizes = mainDiagonals[0].length;
-    for (let mat_n = 0; mat_n < mainDiagonals.length; mat_n++) {
-      matrices[mat_n] = [];
-      const sinesLeft = [-Math.sin(angles[mat_n]), Math.sin(angles[mat_n])];
-      for (let row_i = 0; row_i < rowAndColumnSizes; row_i++) {
-        matrices[mat_n][row_i] = [];
-        for (let col_j = 0; col_j < rowAndColumnSizes; col_j++) {
-          let isInDiagonal = row_i === col_j;
-          let thereIsCosine = mainDiagonals[mat_n][col_j] === "cos";
-          let thereIsOneInTheSameRow = mainDiagonals[mat_n][col_j] === "1";
-          let thereIsOneInTheSameColumn = mainDiagonals[mat_n][row_i] === "1";
-          if (isInDiagonal && thereIsCosine) matrices[mat_n][row_i][col_j] = Math.cos(angles[mat_n]);
-          else if (isInDiagonal && !thereIsCosine) matrices[mat_n][row_i][col_j] = 1;
-          else if (thereIsOneInTheSameRow || thereIsOneInTheSameColumn) matrices[mat_n][row_i][col_j] = 0;
-          else if (sinesLeft.length === 0) throw new Error("No sines left. Cannot insert anything.");
-          else { matrices[mat_n][row_i][col_j] = sinesLeft[0]; sinesLeft.shift(); }
-        }
+  static uploadRotationMatrix(matrix, stamp, angle){
+    let nRows = matrix.length;
+    let nCols = matrix[0].length;
+    if (nRows !== nCols) throw new Error("Not given a square matrix.");
+    const mainDiagonalStamp = Matrix.generateMainDiagonal(stamp, nRows);
+    const sinesLeft = [-Math.sin(angle), Math.sin(angle)];
+    
+    for (let row_i = 0; row_i < nRows; row_i++) {
+      for (let col_j = 0; col_j < nCols; col_j++) {
+        let isInDiagonal = row_i === col_j;
+        let thereIsCosine = mainDiagonalStamp[col_j] === "cos";
+        let thereIsOneInTheSameRow = mainDiagonalStamp[col_j] === "1";
+        let thereIsOneInTheSameColumn = mainDiagonalStamp[row_i] === "1";
+        if (isInDiagonal && thereIsCosine) matrix[row_i][col_j] = Math.cos(angle);
+        else if (isInDiagonal && !thereIsCosine) matrix[row_i][col_j] = 1;
+        else if (thereIsOneInTheSameRow || thereIsOneInTheSameColumn) matrix[row_i][col_j] = 0;
+        else if (sinesLeft.length === 0) throw new Error("No sines left. Cannot insert anything.");
+        else { matrix[row_i][col_j] = sinesLeft[0]; sinesLeft.shift(); }
       }
     }
-    let filteredMatrices = matrices;
-    if (filter !== "all") filteredMatrices = Matrix.#filterFromAllRotations(mainDiagonals, matrices, filter, type);
-    Matrix.#setRotationsAtCenter(filteredMatrices, center);
-    return filteredMatrices;
+  }
+  static generateMainDiagonal(stamp, dim){
+    if(typeof stamp !== "string") throw new Error("Not given a string stamp");
+    if(stamp.length !== 2) throw new Error("The stamp is not long 2");
+    stamp = stamp.split("");
+    stamp = stamp.map((char) => axisIdentifiers.indexOf(char));
+    if(-1 in stamp) throw new Error("Not valid stamp. Unrecognized char");
+    const mainDiagonal = Array(dim).fill("1");
+    mainDiagonal[stamp[0]] = "cos";
+    mainDiagonal[stamp[1]] = "cos";
+    return mainDiagonal;
   }
   static #setRotationsAtCenter(matrices, center) {
     matrices.unshift(Matrix.translation(...oppositeVector(center)));
     matrices.push(Matrix.translation(...center));
-  }
-  static #filterFromAllRotations(mainDiagonals, matrices, filter, type = "and") {
-    let filteredMatrices = [];
-    // the array numbers are referred to those rotation which transforms the all the coordinates from 0 to n-1 has a variable angle
-    let coordPairsWanted = Matrix.#translateFilter(filter);
-    for (let pair_n = 0; pair_n < coordPairsWanted.length; pair_n++) {
-      if (coordPairsWanted[pair_n].length !== 2) throw new Error("Invalid length for a coordinate pair.");
-      let firstCoord = coordPairsWanted[pair_n][0];
-      let secondCoord = coordPairsWanted[pair_n][1];
-      for (let mat_i = 0; mat_i < matrices.length; mat_i++) {
-        if (filteredMatrices.includes(matrices[mat_i])) continue;
-        // the filter depends on type: if both of the coordinates must have cosine is "and", if at least one "or"
-        let isValid = false;
-        let firstCoordInfluencedByCosine = mainDiagonals[mat_i][firstCoord] === "cos";
-        let secondCoordInfluencedByCosine = mainDiagonals[mat_i][secondCoord] === "cos";
-        switch (type) {
-          case "and": isValid = (firstCoordInfluencedByCosine && secondCoordInfluencedByCosine); break;
-          case "or": isValid = (firstCoordInfluencedByCosine || secondCoordInfluencedByCosine); break;
-          default: throw new Error("Invalid value for \"type\": " + type);
-        }
-        if (isValid) filteredMatrices.push(matrices[mat_i]);
-      }
-    }
-    return filteredMatrices;
   }
   static #translateFilter(filter) {
     let pairs = filter.split(", ");
@@ -125,45 +107,6 @@ class Matrix {
     }
     return pairs;
   }
-  // Improvements made:
-  // Replaced the recursive approach with nested for loops to generate the main diagonals.
-  // This change enhances the code in several ways:
-  // **Readability**: The logic is now easier to follow and understand, as the control flow is straightforward and linear.
-  // **Performance**: The use of for loops reduces the overhead associated with recursive function calls, leading to more efficient execution.
-  // **Maintainability**: The loop-based approach is simpler to modify and debug, making future updates or fixes easier to implement.
-
-  // Time complexity: then: O(2^n) ---> now: O(n^2)
-  // Space complexity: then: O(2^n) ---> now: O(n^2)
-  // Acoording to: https://www.bigocalc.com/
-
-  // In each rotation matrix, whatever the dimension is, the number of cosines are always 2.
-  static #possibleRotationMainDiagonals(nthDimension) {
-    let allMainDiagonals = [];
-    for (let i = 0; i < nthDimension; i++) {
-      let mainDiagonal = [];
-      for (let j = i + 1; j < nthDimension; j++) {
-        // Map the array with zeros
-        mainDiagonal = Array(nthDimension).fill("1");
-        // Put cosines in their positions
-        mainDiagonal[i] = "cos"; mainDiagonal[j] = "cos";
-        allMainDiagonals.push(mainDiagonal);
-      }
-    }
-    // This sorting is important: it reorders matrices grouping them per dimension, like we used to:
-    // xy -> at least second dimension
-    // xz, yz -> at least third dimension
-    // xw, yw, zw -> at least fourth dimension ...
-    return allMainDiagonals.sort((a, b) => {
-      let firstIndexOfCos = a.indexOf("cos");
-      let secondIndexOfCos = a.indexOf("cos", 1 + firstIndexOfCos);
-      let firstSum = Math.pow(2, firstIndexOfCos) + Math.pow(2, secondIndexOfCos);
-      firstIndexOfCos = b.indexOf("cos");
-      secondIndexOfCos = b.indexOf("cos", 1 + firstIndexOfCos);
-      let secondSum = Math.pow(2, firstIndexOfCos) + Math.pow(2, secondIndexOfCos);
-      return firstSum - secondSum;
-    });
-  }
-
   static scale(...factors) {
     const rows = factors.length, columns = rows;
     const matrix = Array(rows);
@@ -188,14 +131,13 @@ class PointND {
 
   static origin(nthDimension) { return new PointND(...Array(nthDimension).fill(0)); }
 
-  transform(...matrices) {
+  transform(matrix) {
     let transformed = this;
-    for (let i = 0; i < matrices.length; i++) {
-      let matrixCols = matrices[i][0].length, matrixRows = matrices[i].length;
-      if (matrixCols === this.nthDimension + 1 && matrixRows === matrixCols - 1)
-        transformed = matrixPointMultiplication(matrices[i], new PointND(...transformed.coordinates, 1));
-      else transformed = matrixPointMultiplication(matrices[i], transformed);
-    }
+    let matrixCols = matrix[0].length, matrixRows = matrix.length;
+    if (matrixCols === this.nthDimension + 1 && matrixRows === matrixCols - 1)
+      transformed = matrixPointMultiplication(matrix, new PointND(...transformed.coordinates, 1));
+    else
+      transformed = matrixPointMultiplication(matrix, transformed);
     return new PointND(...transformed.coordinates);
   }
 
@@ -307,9 +249,9 @@ class MeshND {
     return new MeshND(this.vertices, this.sides);
   }
 
-  transform(...matrices) {
-    this.vertices = this.vertices.map(vertex => vertex.transform(...matrices));
-    this.sides = this.sides.map(side => side.transform(...matrices));
+  transform(matrix) {
+    this.vertices = this.vertices.map(vertex => vertex.transform(matrix));
+    this.sides = this.sides.map(side => side.transform(matrix));
     return new MeshND(this.vertices, this.sides);
   }
 }
@@ -362,8 +304,8 @@ class SegmentND {
     context.stroke();
     context.closePath();
   }
-  transform(...matrices) {
-    return new SegmentND(this.start.transform(...matrices), this.end.transform(...matrices));
+  transform(matrix) {
+    return new SegmentND(this.start.transform(matrix), this.end.transform(matrix));
   }
 }
 class Hypercube extends MeshND {
@@ -520,13 +462,14 @@ class Torus extends MeshND {
     slice.extendIn(dimensions);
     let zerosToAppend = Array(dimensions - 1).fill(0);
     slice.transform(Matrix.translation(radius + distanceFromTheCenter, ...zerosToAppend));
-    let lastCoordinate = dimensions - 1;
+    let stamp = "x" + axisIdentifiers[dimensions - 1];
 
     let previousSlice = undefined;
     let stepAngle = Math.PI / complexity;
     for (let i = 0; i < 2 * complexity; i++) {
-      let rotationAroundCenter = Matrix.rotationsInNthDimension(dimensions, Array(dimensions).fill(stepAngle), PointND.origin(dimensions).coordinates, `x_d${lastCoordinate}`);
-      slice = slice.transform(...rotationAroundCenter);
+      const rotationAroundCenter = Array(dimensions).fill().map(() => Array(dimensions).fill(0));
+      Matrix.uploadRotationMatrix(rotationAroundCenter, stamp, stepAngle);
+      slice = slice.transform(rotationAroundCenter);
       vertices.push(...slice.vertices);
       sides.push(...slice.sides);
     }
