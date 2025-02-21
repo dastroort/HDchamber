@@ -86,7 +86,8 @@ function renderEnvironment(input) {
   const mesh = new (shapesMap.get(input))(DIMENSIONS);
   GEOLIB.uploadEnvironment();
   // Fixed matrix problem: now only one multipurpose matrix is uploaded every time with matrix stamps.
-  const rotationMatrix = Array(DIMENSIONS).fill().map(() => Array(DIMENSIONS).fill(0));
+  let M = GEOLIB.SingletonMatrix.init(DIMENSIONS, DIMENSIONS);
+
   const matrixStamps = ["xz", "xy", "yw", "zw"];
   const angles = [angle, angle, 0.5*angle, 0.75*angle];
   // Fixed angle problem: now every angle is normalized indipendently.
@@ -96,9 +97,10 @@ function renderEnvironment(input) {
   // :88
   for(let i=0; i<matrixStamps.length; i++){
     if (matrixStamps.length !== angles.length) throw new Error("Num of stamps and angles must be equal.");
-    GEOLIB.Matrix.uploadRotationMatrix(rotationMatrix, matrixStamps[i], angles[i]);
-    mesh.transform(rotationMatrix);
+    M.set("r", [matrixStamps[i], angles[i]]);
+    mesh.transform(M.value);
   }
+  M.destroy();
   mesh.render(isOrtoActivated);
 
   requestAnimationFrame(() => tic(input));

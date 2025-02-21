@@ -29,48 +29,108 @@ function matrixPointMultiplication(matrix, point) {
   });
   return new PointND(...resultCoordinates);
 }
-// helper methods to create a wellknown transformation matrix
-class Matrix {
-  static translation(...vector) {
-    const matrixRows = vector.length + 1, matrixColumns = matrixRows;
-    const matrix = Array(matrixRows);
-    for (let row_i = 0; row_i < matrixRows; row_i++) {
-      matrix[row_i] = Array(matrixColumns);
-      for (let col_j = 0; col_j < matrixColumns; col_j++) {
-        let isInDiagonal = row_i === col_j;
-        let isLastColumn = col_j === matrixColumns - 1;
-        if (isInDiagonal) matrix[row_i][col_j] = 1;
-        // This condition excludes the one above (isInDiagonal)
-        else if (isLastColumn) matrix[row_i][col_j] = vector[row_i];
-        else matrix[row_i][col_j] = 0;
+
+
+
+// ---------------------- HELPER METHODS TO CREATE A WELLKNOWN TRASFORMATION MATRIX ----------------------
+class SingletonMatrix {
+  static #instance = null;
+
+  constructor(rows, cols){
+    if (SingletonMatrix.#instance) {
+      throw new Error("Use init() method.");
+    }
+    this.rows = rows;
+    this.cols = cols;
+    this.value = Array(rows).fill().map(() => Array(cols).fill(0));
+    this.#setDefault(rows, cols);
+  }
+
+  static init(rows, cols=rows){
+    if (!SingletonMatrix.#instance) {
+      SingletonMatrix.#instance = new SingletonMatrix(rows, cols);
+    }
+    return SingletonMatrix.#instance;
+  }
+
+  #setDefault(rows, cols){
+    for(let i=0; i<rows; i++){
+      for(let j=0; j<cols; j++){
+        if (i === j){
+          this.value[i][j] = 1;
+        } else {
+          this.value[i][j] = 0;
+        }
       }
     }
-    // Deletes the last row. Now the matrix is regular always returns the correct n-dimenional point if it's multiplied by a point.
-    matrix.pop();
-    return matrix;
   }
-  static uploadRotationMatrix(matrix, stamp, angle){
-    let nRows = matrix.length;
-    let nCols = matrix[0].length;
-    if (nRows !== nCols) throw new Error("Not given a square matrix.");
-    const mainDiagonalStamp = Matrix.generateMainDiagonal(stamp, nRows);
+
+  set(flag, param, reset=true){
+    if (!SingletonMatrix.#instance){
+      throw new Error("There is no instance.");
+    }
+    if (reset){
+      this.reset();
+    }
+    switch (flag) {
+      case "t": this.setTranslation(param); break;
+      case "r":
+        if (typeof param !== "object"){
+          throw new Error("Param for rotation must be an array: [stamp, angle]");
+        }
+        this.setRotation(param[0], param[1]); break;
+      default: throw new Error("Invalid flag.");
+    }
+    this.#update();
+  }
+  
+  destroy(){
+    if (!SingletonMatrix.#instance) {
+      throw new Error("Cannot destroy a null instance.");
+    }
+    SingletonMatrix.#instance = null;
+  }
+
+  reset(){
+    let rows = this.rows;
+    let cols = this.cols;
+    this.destroy();
+    SingletonMatrix.#instance = new SingletonMatrix(rows, cols);
+  }
+
+  #update(){
+    this.rows = this.value.length;
+    this.cols = this.value[0].length;
+  }
+
+  setTranslation(vector) {
+    if (vector.length !== this.rows || vector.length !== this.cols) throw new Error(`Invalid vector value (${vector.length}): Matrix${this.rows}x${this.cols}`);
+    for (let i=0; i<this.rows; i++){
+      this.value[i][this.cols] = vector[i];
+    }
+  }
+
+  setRotation(stamp, angle){
+    if (this.rows !== this.cols) throw new Error("Not given a square matrix.");
+    const mainDiagonalStamp = this.#generateMainDiagonal(stamp, this.rows);
     const sinesLeft = [-Math.sin(angle), Math.sin(angle)];
     
-    for (let row_i = 0; row_i < nRows; row_i++) {
-      for (let col_j = 0; col_j < nCols; col_j++) {
-        let isInDiagonal = row_i === col_j;
-        let thereIsCosine = mainDiagonalStamp[col_j] === "cos";
-        let thereIsOneInTheSameRow = mainDiagonalStamp[col_j] === "1";
-        let thereIsOneInTheSameColumn = mainDiagonalStamp[row_i] === "1";
-        if (isInDiagonal && thereIsCosine) matrix[row_i][col_j] = Math.cos(angle);
-        else if (isInDiagonal && !thereIsCosine) matrix[row_i][col_j] = 1;
-        else if (thereIsOneInTheSameRow || thereIsOneInTheSameColumn) matrix[row_i][col_j] = 0;
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < this.cols; j++) {
+        let isInDiagonal = i === j;
+        let thereIsCosine = mainDiagonalStamp[j] === "cos";
+        let thereIsOneInTheSameRow = mainDiagonalStamp[j] === "1";
+        let thereIsOneInTheSameColumn = mainDiagonalStamp[i] === "1";
+        if (isInDiagonal && thereIsCosine) this.value[i][j] = Math.cos(angle);
+        else if (isInDiagonal && !thereIsCosine) this.value[i][j] = 1;
+        else if (thereIsOneInTheSameRow || thereIsOneInTheSameColumn) this.value[i][j] = 0;
         else if (sinesLeft.length === 0) throw new Error("No sines left. Cannot insert anything.");
-        else { matrix[row_i][col_j] = sinesLeft[0]; sinesLeft.shift(); }
+        else { this.value[i][j] = sinesLeft[0]; sinesLeft.shift(); }
       }
     }
   }
-  static generateMainDiagonal(stamp, dim){
+
+  #generateMainDiagonal(stamp, dim){
     if(typeof stamp !== "string") throw new Error("Not given a string stamp");
     if(stamp.length !== 2) throw new Error("The stamp is not long 2");
     stamp = stamp.split("");
@@ -81,46 +141,21 @@ class Matrix {
     mainDiagonal[stamp[1]] = "cos";
     return mainDiagonal;
   }
-  static #setRotationsAtCenter(matrices, center) {
-    matrices.unshift(Matrix.translation(...oppositeVector(center)));
-    matrices.push(Matrix.translation(...center));
-  }
-  static #translateFilter(filter) {
-    let pairs = filter.split(", ");
-    for (let pair_i = 0; pair_i < pairs.length; pair_i++) {
-      pairs[pair_i] = pairs[pair_i].split("_");
-      for (let coord_j = 0; coord_j < pairs[pair_i].length; coord_j++) {
-        let isALetter = /^[a-zA-Z]$/.test(pairs[pair_i][coord_j]);
-        let isNumbered = /^d\d+/.test(pairs[pair_i][coord_j]);
-        if (isALetter)
-          switch (pairs[pair_i][coord_j]) {
-            case "x": pairs[pair_i][coord_j] = 0; break;
-            case "y": pairs[pair_i][coord_j] = 1; break;
-            case "z": pairs[pair_i][coord_j] = 2; break;
-            case "w": pairs[pair_i][coord_j] = 3; break;
-            case "v": pairs[pair_i][coord_j] = 4; break;
-            case "u": pairs[pair_i][coord_j] = 5; break;
-            default: throw new Error("Something went wrong with a literal coordinate!");
-          }
-        else if (isNumbered) pairs[pair_i][coord_j] = pairs[pair_i][coord_j].slice(1) * 1;
-      }
-    }
-    return pairs;
-  }
-  static scale(...factors) {
-    const rows = factors.length, columns = rows;
-    const matrix = Array(rows);
-    for (let i = 0; i < rows; i++) {
-      matrix[i] = Array(columns);
-      for (let j = 0; j < columns; j++) {
-        if (i === j) matrix[i][j] = factors[i];
-        else matrix[i][j] = 0;
-      }
-    }
-    return matrix;
-  }
 
-  static symmetry() { return 1; }
+  // static scale(...factors) {
+  //   const rows = factors.length, columns = rows;
+  //   const matrix = Array(rows);
+  //   for (let i = 0; i < rows; i++) {
+  //     matrix[i] = Array(columns);
+  //     for (let j = 0; j < columns; j++) {
+  //       if (i === j) matrix[i][j] = factors[i];
+  //       else matrix[i][j] = 0;
+  //     }
+  //   }
+  //   return matrix;
+  // }
+
+  // static symmetry() { return 1; }
 }
 
 class PointND {
@@ -360,7 +395,10 @@ class Simplex extends MeshND {
       }
       let oppositeNewBarycenterVector = oppositeVector(simplex.barycenter().coordinates);
       // center the simplex with a traslation
-      simplex.transform(Matrix.translation(...oppositeNewBarycenterVector));
+      let T = SingletonMatrix.init(dimensions, dimensions);
+      T.set("t", oppositeNewBarycenterVector);
+      simplex.transform(T.value);
+      T.destroy();
       return simplex.vertices;
     }
   }
@@ -461,15 +499,20 @@ class Torus extends MeshND {
     let slice = new Hypersphere(dimensions - 1, radius, complexity / 2);
     slice.extendIn(dimensions);
     let zerosToAppend = Array(dimensions - 1).fill(0);
-    slice.transform(Matrix.translation(radius + distanceFromTheCenter, ...zerosToAppend));
+    let T = SingletonMatrix.init(dimensions, dimensions);
+    let vector = [radius + distanceFromTheCenter, ...zerosToAppend];
+    T.set("t", vector);
+    slice.transform(T.value);
+    T.destroy();
     let stamp = "x" + axisIdentifiers[dimensions - 1];
 
     let previousSlice = undefined;
     let stepAngle = Math.PI / complexity;
     for (let i = 0; i < 2 * complexity; i++) {
-      const rotationAroundCenter = Array(dimensions).fill().map(() => Array(dimensions).fill(0));
-      Matrix.uploadRotationMatrix(rotationAroundCenter, stamp, stepAngle);
-      slice = slice.transform(rotationAroundCenter);
+      let R = SingletonMatrix.init(dimensions);
+      R.set("r", [stamp, stepAngle]);
+      slice.transform(R.value);
+      R.destroy();
       vertices.push(...slice.vertices);
       sides.push(...slice.sides);
     }
@@ -523,4 +566,4 @@ function resizeCanvas() {
   context.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
 }
 
-export { Matrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas }
+export { SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas }
