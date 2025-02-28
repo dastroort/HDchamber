@@ -4,21 +4,6 @@ let initialTime = Date.now();
 const speed = Math.PI / 4 // rad/s
 const DIMENSIONS = 4;
 let isOrtoActivated = false;
-function hcf(n, m) {
-  if (m === 0) return n;
-  let remainder = n % m;
-  return hcf(m, remainder);
-}
-function lcm(n, m) {
-  return n * m / hcf(n, m);
-}
-function factorial(n) {
-  if (n === 0 || n === 1) return 1;
-  return n * factorial(n - 1);
-}
-function nCr(n, r) {
-  return factorial(n) / (factorial(r) * factorial(n - r));
-}
 let angle = 0;
 
 // Switch projection mode: orthogonal or perspective projection 
@@ -88,20 +73,18 @@ function renderEnvironment(input) {
   // Fixed matrix problem: now only one multipurpose matrix is uploaded every time with matrix stamps.
   let M = GEOLIB.SingletonMatrix.init(DIMENSIONS, DIMENSIONS);
 
-  const matrixStamps = ["xz", "xy", "yw", "zw"];
+  const rotationPlanes = ["xz", "xy", "yw", "zw"];
   const angles = [angle, angle, 0.5*angle, 0.75*angle];
+  if (rotationPlanes.length !== angles.length) throw new Error(`Num of planes and angles must be equal:\nRotation planes: ${rotationPlanes} (${rotationPlanes.length})\nAngles: ${angles} (${angles.length})`);
   // Fixed angle problem: now every angle is normalized indipendently.
-  angles.forEach((theta, index, array) => {
-    array[index] = theta % (2 * Math.PI);
-  });
-  // :88
-  for(let i=0; i<matrixStamps.length; i++){
-    if (matrixStamps.length !== angles.length) throw new Error("Num of stamps and angles must be equal.");
-    M.set("r", [matrixStamps[i], angles[i]]);
+  angles.forEach(theta => theta % (2 * Math.PI));
+
+  for(let i=0; i<rotationPlanes.length; i++){
+    M.set("r", [rotationPlanes[i], angles[i]]);
     mesh.transform(M.value);
   }
+
   M.destroy();
   mesh.render(isOrtoActivated);
-
   requestAnimationFrame(() => tic(input));
 }
