@@ -203,7 +203,7 @@ class PointND {
     return projected.projectInto(dimensions, isOrto);
   }
 
-  draw(depth, scale = DEFAULT_RENDER_SCALE, nthDimensionPoint = undefined) {
+  draw(depth, scale = DEFAULT_RENDER_SCALE, nthDimensionPoint = undefined, minRotationDimensions = undefined) {
     // only a point in 2 dimensions can be drawn on a screen
     if (this.nthDimension > 2) throw new Error("This point has too many dimensions to be drawn. You should project it");
     if (this.nthDimension === 2) {
@@ -217,7 +217,7 @@ class PointND {
 
       // Calcola il colore basato su hyperdepth
       let color = `hsla(270, 9.8%, 80%, ${250 / (cameraDistance - depth)}%)`;
-      if (nthDimensionPoint !== undefined && nthDimensionPoint.nthDimension > 3) {
+      if (minRotationDimensions !== undefined && minRotationDimensions > 3) {
         let lastHigherDimensionCoordinate = nthDimensionPoint.coordinates[nthDimensionPoint.coordinates.length - 1];
         let hue = 36 * lastHigherDimensionCoordinate + 270; // Hue secondo i commenti
         color = `hsla(${hue}, 100%, 50%, ${250 / (cameraDistance - depth)}%)`;
@@ -256,17 +256,17 @@ class MeshND {
     }
     return new PointND(...barycenterCoords);
   }
-  render(isOrto = false, scale = DEFAULT_RENDER_SCALE) {
+  render(dimensions, isOrto = false, scale = DEFAULT_RENDER_SCALE) {
     this.vertices.forEach(vertex => {
       let projectedVertex = vertex.projectInto(2, isOrto);
       let sampleForHigherDimension = undefined;
       let depth = 1;
-      if (vertex.nthDimension > 3) sampleForHigherDimension = vertex;
+      if (dimensions > 3) sampleForHigherDimension = vertex;
       if (vertex.nthDimension > 2) depth = vertex.coordinates[2];
-      projectedVertex.draw(depth, scale, sampleForHigherDimension);
+      projectedVertex.draw(depth, scale, sampleForHigherDimension, dimensions);
     });
     this.sides.forEach(side => {
-      side.render(isOrto, scale);
+      side.render(isOrto, scale, dimensions);
     });
   }
   extendIn(dimensions) {
@@ -298,10 +298,10 @@ class SegmentND {
     this.extremes = extremes;
     this.start = extremes[0]; this.end = extremes[1];
   }
-  render(isOrto = false, scale = DEFAULT_RENDER_SCALE) {
+  render(isOrto = false, scale = DEFAULT_RENDER_SCALE, minRotationDimensions = undefined) {
     let hyperdepth1 = undefined;
     let hyperdepth2 = undefined;
-    if (this.nthDimension > 3) {
+    if (minRotationDimensions > 3) {
       hyperdepth1 = this.start.coordinates[this.start.coordinates.length - 1];
       hyperdepth2 = this.end.coordinates[this.end.coordinates.length - 1];
     }
@@ -566,4 +566,4 @@ function resizeCanvas() {
   context.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
 }
 
-export { SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas }
+export { axisIdentifiers, SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas }

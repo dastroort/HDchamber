@@ -2,9 +2,12 @@ import * as GEOLIB from "/geolib.js"
 
 let initialTime = Date.now();
 const speed = Math.PI / 4 // rad/s
-const DIMENSIONS = 4;
+let DIMENSIONS = 2;
+const MIN_DIMENSIONS = 2;
+const MAX_DIMENSIONS = 6;
 let isOrtoActivated = false;
 let angle = 0;
+let isRendering = false;
 
 // Switch projection mode: orthogonal or perspective projection 
 const projectionModeBtn = document.querySelector(".projection-mode");
@@ -50,9 +53,7 @@ const shapesBtns = dropmenu.querySelectorAll(".button.shape");
 shapesBtns.forEach(button => {
   button.addEventListener("click", () => {
     const input = button.innerHTML;
-    const h1 = document.querySelector("h1");
     if (input !== "And so on...") {
-      h1.innerHTML = `A ${DIMENSIONS}-${input} rotating in ${DIMENSIONS}D`;
       tic(input);
     } else {
       alert("Wait for new shapes!");
@@ -60,7 +61,23 @@ shapesBtns.forEach(button => {
   });
 });
 
+const dimensionHandlerBtn = document.querySelector(".dimension-handler");
+dimensionHandlerBtn.addEventListener("click", () => {
+    let n = prompt(`Enter the number of dimensions of the shape you want to see (${MIN_DIMENSIONS}-${MAX_DIMENSIONS}):`) * 1;
+    if (n >= 2 && n <= 6) {
+      DIMENSIONS = n;
+      if (isRendering) {
+        const h1 = document.querySelector("h1");
+        h1.innerHTML = `A ${DIMENSIONS}-${input} rotating in ${DIMENSIONS}`;
+      }
+    } else {
+      alert(`Invalid number of dimensions: ${n}`);
+    }
+  }
+);
+
 function tic(input) {
+  isRendering = true;
   let lastTime = Date.now();
   let deltaTime = lastTime - initialTime;
   angle += speed * deltaTime / 1000;
@@ -79,12 +96,27 @@ function renderEnvironment(input) {
   // Fixed angle problem: now every angle is normalized indipendently.
   angles.forEach(theta => theta % (2 * Math.PI));
 
+  let minRotationDimensions;
+  rotationPlanes.forEach(plane => {
+    let dimensions = plane.split("");
+    dimensions = dimensions.map(axis => GEOLIB.axisIdentifiers.indexOf(axis) + 1);
+    dimensions.forEach(dims => {
+      if (!minRotationDimensions) {
+        minRotationDimensions = dims;
+      } else {
+        minRotationDimensions = Math.max(minRotationDimensions, dims);
+      }
+    });
+  });
+  const h1 = document.querySelector("h1");
+  h1.innerHTML = `A ${DIMENSIONS}-${input} rotating in ${minRotationDimensions}D`;
+
   for(let i=0; i<rotationPlanes.length; i++){
     M.set("r", [rotationPlanes[i], angles[i]]);
     mesh.transform(M.value);
   }
 
   M.destroy();
-  mesh.render(isOrtoActivated);
+  mesh.render(minRotationDimensions, isOrtoActivated);
   requestAnimationFrame(() => tic(input));
 }
