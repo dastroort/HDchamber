@@ -28,9 +28,15 @@ window.addEventListener("resize", () => {
 
 // Open and close a dropmenu
 const shapeHandlerBtn = document.querySelector(".shape-handler");
-const dropmenu = document.querySelector(".dropmenu");
+const shapesDropmenu = document.querySelector(".shape-handler + .dropmenu");
 shapeHandlerBtn.addEventListener("click", () => {
-  dropmenu.classList.toggle("open");
+  shapesDropmenu.classList.toggle("open");
+  // Imposta display:none appena finisce la transizione per evitare bug.
+  shapesDropmenu.addEventListener("transitionend", () => {
+    if (!shapesDropmenu.classList.contains("open")) {
+      shapesDropmenu.style.display = "none";
+    }
+  });
 });
 
 // A js map is similar to a python dict
@@ -46,10 +52,10 @@ shapesMap.keys().forEach(key => {
   const shape = document.createElement("li");
   shape.classList.add("button", "shape");
   shape.innerHTML = key;
-  dropmenu.appendChild(shape);
+  shapesDropmenu.appendChild(shape);
 });
 
-const shapesBtns = dropmenu.querySelectorAll(".button.shape");
+const shapesBtns = shapesDropmenu.querySelectorAll(".button.shape");
 shapesBtns.forEach(button => {
   button.addEventListener("click", () => {
     const input = button.innerHTML;
@@ -61,6 +67,7 @@ shapesBtns.forEach(button => {
   });
 });
 
+// Gestione del bottone per cambiare il numero di dimensioni
 const dimensionHandlerBtn = document.querySelector(".dimension-handler");
 dimensionHandlerBtn.addEventListener("click", () => {
     let n = prompt(`Enter the number of dimensions of the shape you want to see (${MIN_DIMENSIONS}-${MAX_DIMENSIONS}):`) * 1;
@@ -76,6 +83,67 @@ dimensionHandlerBtn.addEventListener("click", () => {
   }
 );
 
+// Gestione del bottone per impostare le rotazioni
+const rotationHandlerBtn = document.querySelector(".rotation-handler");
+rotationHandlerBtn.addEventListener("click", () => {});
+
+const rotationsDropmenu = document.querySelector(".rotation-handler + .dropmenu");
+rotationHandlerBtn.addEventListener("click", () => {
+  rotationsDropmenu.classList.toggle("open");
+});
+
+const rotationPlanes = ["xz", "xy", "yw", "zw"];
+const angularSpeedFactors = [1, 1, 0.5, 0.75];
+
+const rotationsMap = new Map();
+for (let i=0; i<rotationPlanes.length; i++) {
+  rotationsMap.set(rotationPlanes[i], angularSpeedFactors[i]);
+}
+let rotationHandlerOptions = document.createElement("ul");
+rotationHandlerOptions.classList.add("rotation-handler-options", "button");
+rotationsMap.set("+", null);
+rotationsMap.set("-", null);
+
+rotationsMap.keys().forEach((key => {
+  const rotationPlane = document.createElement("li");
+  rotationPlane.classList.add("button", "rotation-plane", key);
+  rotationPlane.innerHTML = key.toUpperCase();
+  rotationsDropmenu.appendChild(rotationPlane);
+}));
+
+// Edita il fattore di velocità di rotazione di un piano, toglilo o aggiungilo.
+const rotationPlanesBtns = document.querySelectorAll(".button.rotation-plane");
+rotationPlanesBtns.forEach(button => {
+  button.addEventListener("click", () => {
+    const input = button.innerHTML.toLowerCase();
+    if (input === "+" || input === "-") {
+      let rotationPlane = prompt("Enter the rotation plane you want to add or remove:");
+      if (rotationPlane) {
+        if (rotationPlanes.includes(rotationPlane)) {
+          let index = rotationPlanes.indexOf(rotationPlane);
+          rotationPlanes.splice(index, 1);
+          angularSpeedFactors.splice(index, 1);
+          rotationsDropmenu.querySelector(`.${rotationPlane}`).remove();
+        } else {
+          const rotationPlaneBtn = document.createElement("li");
+          rotationPlaneBtn.classList.add("button", "rotation-plane", rotationPlane);
+          rotationPlanes.push(rotationPlane);
+          rotationPlaneBtn.innerHTML = rotationPlane.toUpperCase();
+          angularSpeedFactors.push(1);
+          rotationsDropmenu.appendChild(rotationPlaneBtn);
+        }
+      }
+    } else {
+      let rotationPlane = input;
+      let angularSpeedFactor = prompt(`Enter the angular speed factor for the plane ${rotationPlane}:`);
+      if (angularSpeedFactor) {
+        let index = rotationPlanes.indexOf(rotationPlane);
+        angularSpeedFactors[index] = angularSpeedFactor * 1;
+      }
+    }
+  });
+});
+
 function tic(input) {
   isRendering = true;
   let lastTime = Date.now();
@@ -90,11 +158,9 @@ function renderEnvironment(input) {
   // Fixed matrix problem: now only one multipurpose matrix is uploaded every time with matrix stamps.
   let M = GEOLIB.SingletonMatrix.init(DIMENSIONS, DIMENSIONS);
 
-  const rotationPlanes = ["xz", "xy", "yw", "zw"];
-  const angles = [angle, angle, 0.5*angle, 0.75*angle];
-  if (rotationPlanes.length !== angles.length) throw new Error(`Num of planes and angles must be equal:\nRotation planes: ${rotationPlanes} (${rotationPlanes.length})\nAngles: ${angles} (${angles.length})`);
+  if (rotationPlanes.length !== angularSpeedFactors.length) throw new Error(`Num of planes and angles must be equal:\nRotation planes: ${rotationPlanes} (${rotationPlanes.length})\nAngles: ${angularSpeedFactors} (${angularSpeedFactors.length})`);
   // Fixed angle problem: now every angle is normalized indipendently.
-  angles.forEach(theta => theta % (2 * Math.PI));
+  let angles = angularSpeedFactors.map(factor => factor * angle % (2 * Math.PI));
 
   let minRotationDimensions;
   rotationPlanes.forEach(plane => {

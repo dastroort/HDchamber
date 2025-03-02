@@ -55,6 +55,7 @@ h1 {
   text-decoration: none;
   opacity: 0.45;
   transition: all 0.3s ease;
+  cursor: pointer;
 }
 .button:hover {
   opacity: 1;
@@ -93,7 +94,8 @@ button i::before {
   opacity: 1;
   transform: none;
 }
-.dropmenu .button.shape {
+.dropmenu .button.shape,
+.dropmenu .button.rotation-plane {
   height: auto;
   width: auto;
   font-size: 12px;
