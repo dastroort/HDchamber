@@ -1,0 +1,17 @@
+{
+  "name": "hdchamber",
+  "version": "1.0.0",
+  "description": "HDchamber is a rendering environment built in vanilla JavaScript, where geometric figures from higher dimensions are brought to life. Unveil the mysteries of shapes like Tesseracts, Simplices, Hyperspheres, and more!",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "eslint": "^9.21.0",
+    "globals": "^16.0.0"
+  }
+}

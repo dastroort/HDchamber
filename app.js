@@ -1,22 +1,20 @@
-import * as GEOLIB from "/geolib.js"
+import * as GEOLIB from "/geolib.js";
 
-let initialTime = Date.now();
-const speed = Math.PI / 4 // rad/s
-let DIMENSIONS = 2;
-const MIN_DIMENSIONS = 2;
-const MAX_DIMENSIONS = 6;
-let isOrtoActivated = false;
-let angle = 0;
-let isRendering = false;
+// VARIABILI GLOBALI PER L'APPLICAZIONE
+const app = {
+  initialTime: Date.now(),
+  finalTime: null,
+  deltaTime: () => app.finalTime - app.initialTime,
+  angularSpeed: Math.PI / 4, // rad/s
+  dimensions: 2,
+  MIN_DIMENSIONS: 2,
+  MAX_DIMENSIONS: 6,
+  angle: 0,
+  isRendering: false,
+  handlers: {}
+};
 
-// Switch projection mode: orthogonal or perspective projection 
-const projectionModeBtn = document.querySelector(".projection-mode");
-projectionModeBtn.addEventListener("click", () => {
-  isOrtoActivated = isOrtoActivated ? false : true;
-  let icon = projectionModeBtn.querySelector(".icon");
-  icon.src = `./icons/orto_${isOrtoActivated ? "on" : "off"}.png`;
-});
-
+// CONFIGURAZIONE DEL CANVAS
 window.addEventListener("resize", () => {
   GEOLIB.resizeCanvas();
   const h1 = document.querySelector("h1");
@@ -26,163 +24,185 @@ window.addEventListener("resize", () => {
   tic();
 });
 
-// Open and close a dropmenu
-const shapeHandlerBtn = document.querySelector(".shape-handler");
-const shapesDropmenu = document.querySelector(".shape-handler + .dropmenu");
-shapeHandlerBtn.addEventListener("click", () => {
-  shapesDropmenu.classList.toggle("open");
-  // Imposta display:none appena finisce la transizione per evitare bug.
-  shapesDropmenu.addEventListener("transitionend", () => {
-    if (!shapesDropmenu.classList.contains("open")) {
-      shapesDropmenu.style.display = "none";
+// CONFIGURAZIONE DEL BOTTONE CHE ATTIVA/DISATTIVA LA PROIEZIONE ORTOGONALE
+app.handlers.projection = {
+  button: document.querySelector(".button.projection-mode"),
+  icon: document.querySelector(".button.projection-mode .icon"),
+  isOrthoActivated: false
+};
+app.handlers.projection.button.addEventListener("click", () => {
+  app.handlers.projection.isOrthoActivated = app.handlers.projection.isOrthoActivated ? false : true;
+  app.handlers.projection.button.icon.src = `./icons/orto_${app.handlers.projection.isOrtoActivated ? "on" : "off"}.png`;
+});
+
+// CONFIGURAZIONE DEL BOTTONE CHE GESTISCE LA SELEZIONE DELLE MESH
+app.handlers.meshes = {
+  button: document.querySelector(".meshes-handler .button"),
+  dropmenu: document.querySelector(".meshes-handler .dropmenu"),
+  meshButtons: null
+};
+app.handlers.meshes.button.addEventListener("click", () => {
+  app.handlers.meshes.dropmenu.classList.toggle("open");
+  // Imposta display: none appena finisce la transizione per evitare bug
+  app.handlers.meshes.dropmenu.addEventListener("transitionend", () => {
+    if (!app.handlers.meshes.dropmenu.classList.contains("open")) {
+      app.handlers.meshes.dropmenu.style.display = "none";
     }
   });
 });
 
-// A js map is similar to a python dict
-const shapesMap = new Map();
-shapesMap.set("Hypercube", GEOLIB.Hypercube);
-shapesMap.set("Simplex", GEOLIB.Simplex);
-shapesMap.set("Hypersphere", GEOLIB.Hypersphere);
-shapesMap.set("Torus", GEOLIB.Torus);
-shapesMap.set("Orthoplex", GEOLIB.Orthoplex);
-shapesMap.set("And so on...", null);
+const meshesMap = new Map();
+meshesMap.set("Hypercube", GEOLIB.Hypercube);
+meshesMap.set("Simplex", GEOLIB.Simplex);
+meshesMap.set("Hypersphere", GEOLIB.Hypersphere);
+meshesMap.set("Torus", GEOLIB.Torus);
+meshesMap.set("Orthoplex", GEOLIB.Orthoplex);
+meshesMap.set("And so on...", null);
 
-shapesMap.keys().forEach(key => {
-  const shape = document.createElement("li");
-  shape.classList.add("button", "shape");
-  shape.innerHTML = key;
-  shapesDropmenu.appendChild(shape);
+
+meshesMap.keys().forEach(key => {
+  const mesh = document.createElement("li");
+  mesh.classList.add("button", "mesh");
+  mesh.innerHTML = key;
+  app.handlers.meshes.dropmenu.appendChild(mesh);
 });
-
-const shapesBtns = shapesDropmenu.querySelectorAll(".button.shape");
-shapesBtns.forEach(button => {
+// Aggiorno la property prima nulla
+app.handlers.meshes.meshButtons = document.querySelectorAll(".button.mesh");
+app.handlers.meshes.meshButtons.forEach(button => {
   button.addEventListener("click", () => {
     const input = button.innerHTML;
     if (input !== "And so on...") {
       tic(input);
     } else {
-      alert("Wait for new shapes!");
+      alert("Wait for new meshes!");
     }
   });
 });
 
-// Gestione del bottone per cambiare il numero di dimensioni
-const dimensionHandlerBtn = document.querySelector(".dimension-handler");
-dimensionHandlerBtn.addEventListener("click", () => {
-    let n = prompt(`Enter the number of dimensions of the shape you want to see (${MIN_DIMENSIONS}-${MAX_DIMENSIONS}):`) * 1;
-    if (n >= 2 && n <= 6) {
-      DIMENSIONS = n;
-      if (isRendering) {
+// GESTIONE DEL BOTTONE PER CAMBIARE IL NUMERO DI DIMENSIONI
+app.handlers.dimension = {
+  button: document.querySelector(".button.dimension-handler"),
+  input: null
+};
+app.handlers.dimension.button.addEventListener("click", () => {
+    app.handlers.dimension.input = prompt(`Enter the number of dimensions of the shape you want to see (${app.MIN_DIMENSIONS}-${app.MAX_DIMENSIONS}):`) * 1;
+    if (app.handlers.dimension.input >= app.MIN_DIMENSIONS && app.handlers.dimension.input <= app.MAX_DIMENSIONS) {
+      app.dimensions = app.handlers.dimension.input;
+      if (app.isRendering) {
         const h1 = document.querySelector("h1");
-        h1.innerHTML = `A ${DIMENSIONS}-${input} rotating in ${DIMENSIONS}`;
+        h1.innerHTML = `A ${app.dimensions}-${app.handlers.dimension.input} rotating in ${app.dimensions}`;
       }
     } else {
-      alert(`Invalid number of dimensions: ${n}`);
+      alert(`Invalid number of dimensions: ${app.handlers.dimension.input}`);
     }
   }
 );
 
-// Gestione del bottone per impostare le rotazioni
-const rotationHandlerBtn = document.querySelector(".rotation-handler");
-rotationHandlerBtn.addEventListener("click", () => {});
-
-const rotationsDropmenu = document.querySelector(".rotation-handler + .dropmenu");
-rotationHandlerBtn.addEventListener("click", () => {
-  rotationsDropmenu.classList.toggle("open");
+// GESTIONE DEL BOTTONE PER IMPOSTARE LE ROTAZIONI
+app.handlers.rotation = {
+  button: document.querySelector(".button.rotation-handler"),
+  dropmenu: document.querySelector(".rotation-handler .dropmenu"),
+  planes: ["xz", "xy", "yw", "zw"],
+  angularSpeedFactors: [1, 1, 0.5, 0.75],
+  planeButtons: null,
+  options: null
+};
+app.handlers.rotation.button = document.querySelector(".rotation-handler");
+app.handlers.rotation.dropmenu = document.querySelector(".rotation-handler + .dropmenu");
+app.handlers.rotation.button.addEventListener("click", () => {
+  app.handlers.rotation.dropmenu.classList.toggle("open");
 });
 
-const rotationPlanes = ["xz", "xy", "yw", "zw"];
-const angularSpeedFactors = [1, 1, 0.5, 0.75];
-
-const rotationsMap = new Map();
-for (let i=0; i<rotationPlanes.length; i++) {
-  rotationsMap.set(rotationPlanes[i], angularSpeedFactors[i]);
+const planesMap = new Map();
+for (let i = 0; i < app.handlers.rotation.planes.length; i++) {
+  planesMap.set(app.handlers.rotation.planes[i], app.handlers.rotation.angularSpeedFactors[i]);
 }
-let rotationHandlerOptions = document.createElement("ul");
-rotationHandlerOptions.classList.add("rotation-handler-options", "button");
-rotationsMap.set("+", null);
-rotationsMap.set("-", null);
+app.handlers.rotation.options = document.createElement("ul");
+app.handlers.rotation.options.classList.add("rotation-handler-options", "button");
+planesMap.set("+", null);
+planesMap.set("-", null);
 
-rotationsMap.keys().forEach((key => {
+planesMap.keys().forEach((key => {
   const rotationPlane = document.createElement("li");
   rotationPlane.classList.add("button", "rotation-plane", key);
   rotationPlane.innerHTML = key.toUpperCase();
-  rotationsDropmenu.appendChild(rotationPlane);
+  app.handlers.rotation.dropmenu.appendChild(rotationPlane);
 }));
-
 // Edita il fattore di velocità di rotazione di un piano, toglilo o aggiungilo.
-const rotationPlanesBtns = document.querySelectorAll(".button.rotation-plane");
-rotationPlanesBtns.forEach(button => {
+app.handlers.rotation.planeButtons = document.querySelectorAll(".button.rotation-plane");
+app.handlers.rotation.planeButtons.forEach(button => {
   button.addEventListener("click", () => {
     const input = button.innerHTML.toLowerCase();
     if (input === "+" || input === "-") {
       let rotationPlane = prompt("Enter the rotation plane you want to add or remove:");
       if (rotationPlane) {
-        if (rotationPlanes.includes(rotationPlane)) {
-          let index = rotationPlanes.indexOf(rotationPlane);
-          rotationPlanes.splice(index, 1);
-          angularSpeedFactors.splice(index, 1);
-          rotationsDropmenu.querySelector(`.${rotationPlane}`).remove();
+        if (app.handlers.rotation.planes.includes(rotationPlane)) {
+          let index = app.handlers.rotation.planes.indexOf(rotationPlane);
+          app.handlers.rotation.planes.splice(index, 1);
+          app.handlers.rotation.angularSpeedFactors.splice(index, 1);
+          app.handlers.rotation.dropmenu.querySelector(`.${rotationPlane}`).remove();
         } else {
-          const rotationPlaneBtn = document.createElement("li");
-          rotationPlaneBtn.classList.add("button", "rotation-plane", rotationPlane);
-          rotationPlanes.push(rotationPlane);
-          rotationPlaneBtn.innerHTML = rotationPlane.toUpperCase();
-          angularSpeedFactors.push(1);
-          rotationsDropmenu.appendChild(rotationPlaneBtn);
+          const newButton = document.createElement("li");
+          newButton.classList.add("button", "rotation-plane", rotationPlane);
+          app.handlers.rotation.planes.push(rotationPlane);
+          newButton.innerHTML = rotationPlane.toUpperCase();
+          app.handlers.rotation.angularSpeedFactors.push(1);
+          app.handlers.rotation.dropmenu.appendChild(newButton);
         }
       }
     } else {
       let rotationPlane = input;
-      let angularSpeedFactor = prompt(`Enter the angular speed factor for the plane ${rotationPlane}:`);
+      let angularSpeedFactor = prompt(`Enter the angular speed factor for the plane ${rotationPlane}:`) * 1;
       if (angularSpeedFactor) {
-        let index = rotationPlanes.indexOf(rotationPlane);
-        angularSpeedFactors[index] = angularSpeedFactor * 1;
+        let index = app.handlers.rotation.planes.indexOf(rotationPlane);
+        app.handlers.rotation.angularSpeedFactors[index] = angularSpeedFactor;
       }
     }
   });
 });
+console.log(app);
 
 function tic(input) {
-  isRendering = true;
-  let lastTime = Date.now();
-  let deltaTime = lastTime - initialTime;
-  angle += speed * deltaTime / 1000;
-  initialTime = lastTime;
+  app.isRendering = true;
+  app.finalTime = Date.now();
+  app.angle += app.angularSpeed * app.deltaTime() / 1000;
+  app.initialTime = app.finalTime;
   renderEnvironment(input);
 }
+
 function renderEnvironment(input) {
-  const mesh = new (shapesMap.get(input))(DIMENSIONS);
+  const mesh = new (meshesMap.get(input))(app.dimensions);
   GEOLIB.uploadEnvironment();
-  // Fixed matrix problem: now only one multipurpose matrix is uploaded every time with matrix stamps.
-  let M = GEOLIB.SingletonMatrix.init(DIMENSIONS, DIMENSIONS);
+  // Creo la matrice di rotazione
+  let r = GEOLIB.SingletonMatrix.init(app.dimensions);
 
-  if (rotationPlanes.length !== angularSpeedFactors.length) throw new Error(`Num of planes and angles must be equal:\nRotation planes: ${rotationPlanes} (${rotationPlanes.length})\nAngles: ${angularSpeedFactors} (${angularSpeedFactors.length})`);
-  // Fixed angle problem: now every angle is normalized indipendently.
-  let angles = angularSpeedFactors.map(factor => factor * angle % (2 * Math.PI));
+  if (app.handlers.rotation.planes.length !== app.handlers.rotation.angularSpeedFactors.length) throw new Error(`Num of planes and angles must be equal:\nRotation planes: ${app.handlers.rotation.planes} (${app.handlers.rotation.planes.length})\nAngles: ${app.handlers.rotation.angularSpeedFactors} (${app.handlers.rotation.angularSpeedFactors.length})`);
+  // Calcolo gli angoli di rotazione nell'istante attuale
+  let angles = app.handlers.rotation.angularSpeedFactors.map(factor => factor * app.angle % (2 * Math.PI));
 
-  let minRotationDimensions;
-  rotationPlanes.forEach(plane => {
+  let highestRotationDimension;
+  app.handlers.rotation.planes.forEach(plane => {
     let dimensions = plane.split("");
     dimensions = dimensions.map(axis => GEOLIB.axisIdentifiers.indexOf(axis) + 1);
-    dimensions.forEach(dims => {
-      if (!minRotationDimensions) {
-        minRotationDimensions = dims;
+    dimensions.forEach(d => {
+      if (!highestRotationDimension) {
+        highestRotationDimension = d;
       } else {
-        minRotationDimensions = Math.max(minRotationDimensions, dims);
+        highestRotationDimension = Math.max(highestRotationDimension, d);
       }
     });
   });
+  // Aggiorno il titolo
   const h1 = document.querySelector("h1");
-  h1.innerHTML = `A ${DIMENSIONS}-${input} rotating in ${minRotationDimensions}D`;
-
-  for(let i=0; i<rotationPlanes.length; i++){
-    M.set("r", [rotationPlanes[i], angles[i]]);
-    mesh.transform(M.value);
+  h1.innerHTML = `A ${app.dimensions}-${input} rotating in ${highestRotationDimension}D`;
+  // Applico la rotazione
+  for(let i = 0; i < app.handlers.rotation.planes.length; i++){
+    r.set("r", [app.handlers.rotation.planes[i], angles[i]]);
+    mesh.transform(r.value);
   }
-
-  M.destroy();
-  mesh.render(minRotationDimensions, isOrtoActivated);
+  // Distruggo la matrice di rotazione. E' importante farlo per evitare memory leaks
+  r.destroy();
+  // Disegno la mesh
+  mesh.render(highestRotationDimension, app.isOrthoActivated);
   requestAnimationFrame(() => tic(input));
 }

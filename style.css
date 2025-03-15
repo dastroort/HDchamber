@@ -94,7 +94,7 @@ button i::before {
   opacity: 1;
   transform: none;
 }
-.dropmenu .button.shape,
+.dropmenu .button.mesh,
 .dropmenu .button.rotation-plane {
   height: auto;
   width: auto;

@@ -16,7 +16,7 @@ const axisIdentifiers = "xyzwvu";
 // Acoording to: https://www.bigocalc.com/
 function matrixPointMultiplication(matrix, point) {
   let resultCoordinates = [];
-  const matrixColumns = matrix[0].length, matrixRows = matrix.length;
+  const matrixColumns = matrix[0].length;
   // Check if the matrix columns match the point's dimensions before proceeding with the multiplication.
   if (matrixColumns !== point.nthDimension) throw new Error(`Matrix multiplication cannot exist:\nmatrix length:\t${matrixColumns},\npoint length:\t${point.nthDimension}`);
   matrix.forEach((row, rowIndex) => {
@@ -506,7 +506,6 @@ class Torus extends MeshND {
     T.destroy();
     let stamp = "x" + axisIdentifiers[dimensions - 1];
 
-    let previousSlice = undefined;
     let stepAngle = Math.PI / complexity;
     for (let i = 0; i < 2 * complexity; i++) {
       let R = SingletonMatrix.init(dimensions);
@@ -522,7 +521,7 @@ class Torus extends MeshND {
   static #connectTwoAdiacentTorusSections(sliceSample, torusVertices) {
     let sides = [];
     for (let v = sliceSample.vertices.length; v < torusVertices.length; v += 1) {
-      if (v > torusVertices.length - 1 - sliceSample.vertices.length) sides.push(new SegmentND(torusVertices[v], torusVertices[(v + sliceSample.vertices.length) % torusVertices.length]))
+      if (v > torusVertices.length - 1 - sliceSample.vertices.length) sides.push(new SegmentND(torusVertices[v], torusVertices[(v + sliceSample.vertices.length) % torusVertices.length]));
       sides.push(new SegmentND(torusVertices[v - sliceSample.vertices.length], torusVertices[v]));
     }
     return sides;
@@ -533,29 +532,29 @@ function oppositeVector(vector) {
   return vector;
 }
 
-function create24Cell() {
-  const vertices = [];
-  // Generate vertices of the form (±1, ±1, 0, 0)
-  const coords = [1, -1];
-  for (let i of coords) {
-    for (let j of coords) {
-      vertices.push(new PointND(i, j, 0, 0));
-      vertices.push(new PointND(i, 0, j, 0));
-      vertices.push(new PointND(i, 0, 0, j));
-      vertices.push(new PointND(0, i, j, 0));
-      vertices.push(new PointND(0, i, 0, j));
-      vertices.push(new PointND(0, 0, i, j));
-    }
-  }
-  // Generate vertices of the form (±1, 0, 0, 0)
-  for (let i of coords) {
-    vertices.push(new PointND(i, 0, 0, 0));
-    vertices.push(new PointND(0, i, 0, 0));
-    vertices.push(new PointND(0, 0, i, 0));
-    vertices.push(new PointND(0, 0, 0, i));
-  }
-  return vertices;
-}
+// function create24Cell() {
+//   const vertices = [];
+//   // Generate vertices of the form (±1, ±1, 0, 0)
+//   const coords = [1, -1];
+//   for (let i of coords) {
+//     for (let j of coords) {
+//       vertices.push(new PointND(i, j, 0, 0));
+//       vertices.push(new PointND(i, 0, j, 0));
+//       vertices.push(new PointND(i, 0, 0, j));
+//       vertices.push(new PointND(0, i, j, 0));
+//       vertices.push(new PointND(0, i, 0, j));
+//       vertices.push(new PointND(0, 0, i, j));
+//     }
+//   }
+//   // Generate vertices of the form (±1, 0, 0, 0)
+//   for (let i of coords) {
+//     vertices.push(new PointND(i, 0, 0, 0));
+//     vertices.push(new PointND(0, i, 0, 0));
+//     vertices.push(new PointND(0, 0, i, 0));
+//     vertices.push(new PointND(0, 0, 0, i));
+//   }
+//   return vertices;
+// }
 
 function uploadEnvironment() {
   context.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -566,4 +565,4 @@ function resizeCanvas() {
   context.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
 }
 
-export { axisIdentifiers, SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas }
+export { axisIdentifiers, SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas };
