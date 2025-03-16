@@ -1,6 +1,6 @@
 const canvas = document.querySelector("canvas");
 let context = canvas.getContext("2d");
-const screenDimensions = { "width": window.innerWidth, "height": 77.5 / 100 * window.innerHeight };
+const screenDimensions = { width: window.innerWidth, height: (77.5 / 100) * window.innerHeight };
 [canvas.width, canvas.height] = [screenDimensions.width, screenDimensions.height];
 
 const DEFAULT_RENDER_SCALE = 200;
@@ -30,33 +30,33 @@ function matrixPointMultiplication(matrix, point) {
   return new PointND(...resultCoordinates);
 }
 
-
-
 // ---------------------- HELPER METHODS TO CREATE A WELLKNOWN TRASFORMATION MATRIX ----------------------
 class SingletonMatrix {
   static #instance = null;
 
-  constructor(rows, cols){
+  constructor(rows, cols) {
     if (SingletonMatrix.#instance) {
       throw new Error("Use init() method.");
     }
     this.rows = rows;
     this.cols = cols;
-    this.value = Array(rows).fill().map(() => Array(cols).fill(0));
+    this.value = Array(rows)
+      .fill()
+      .map(() => Array(cols).fill(0));
     this.#setDefault(rows, cols);
   }
 
-  static init(rows, cols=rows){
+  static init(rows, cols = rows) {
     if (!SingletonMatrix.#instance) {
       SingletonMatrix.#instance = new SingletonMatrix(rows, cols);
     }
     return SingletonMatrix.#instance;
   }
 
-  #setDefault(rows, cols){
-    for(let i=0; i<rows; i++){
-      for(let j=0; j<cols; j++){
-        if (i === j){
+  #setDefault(rows, cols) {
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < cols; j++) {
+        if (i === j) {
           this.value[i][j] = 1;
         } else {
           this.value[i][j] = 0;
@@ -65,56 +65,60 @@ class SingletonMatrix {
     }
   }
 
-  set(flag, param, reset=true){
-    if (!SingletonMatrix.#instance){
+  set(flag, param, reset = true) {
+    if (!SingletonMatrix.#instance) {
       throw new Error("There is no instance.");
     }
-    if (reset){
+    if (reset) {
       this.reset();
     }
     switch (flag) {
-      case "t": this.setTranslation(param); break;
+      case "t":
+        this.setTranslation(param);
+        break;
       case "r":
-        if (typeof param !== "object"){
+        if (typeof param !== "object") {
           throw new Error("Param for rotation must be an array: [stamp, angle]");
         }
-        this.setRotation(param[0], param[1]); break;
-      default: throw new Error("Invalid flag.");
+        this.setRotation(param[0], param[1]);
+        break;
+      default:
+        throw new Error("Invalid flag.");
     }
     this.#update();
   }
-  
-  destroy(){
+
+  destroy() {
     if (!SingletonMatrix.#instance) {
       throw new Error("Cannot destroy a null instance.");
     }
     SingletonMatrix.#instance = null;
   }
 
-  reset(){
+  reset() {
     let rows = this.rows;
     let cols = this.cols;
     this.destroy();
     SingletonMatrix.#instance = new SingletonMatrix(rows, cols);
   }
 
-  #update(){
+  #update() {
     this.rows = this.value.length;
     this.cols = this.value[0].length;
   }
 
   setTranslation(vector) {
     if (vector.length !== this.rows || vector.length !== this.cols) throw new Error(`Invalid vector value (${vector.length}): Matrix${this.rows}x${this.cols}`);
-    for (let i=0; i<this.rows; i++){
+    for (let i = 0; i < this.rows; i++) {
       this.value[i][this.cols] = vector[i];
     }
   }
 
-  setRotation(stamp, angle){
+  setRotation(stamp, angle) {
     if (this.rows !== this.cols) throw new Error("Not given a square matrix.");
     const mainDiagonalStamp = this.#generateMainDiagonal(stamp, this.rows);
     const sinesLeft = [-Math.sin(angle), Math.sin(angle)];
-    
+
     for (let i = 0; i < this.rows; i++) {
       for (let j = 0; j < this.cols; j++) {
         let isInDiagonal = i === j;
@@ -125,17 +129,20 @@ class SingletonMatrix {
         else if (isInDiagonal && !thereIsCosine) this.value[i][j] = 1;
         else if (thereIsOneInTheSameRow || thereIsOneInTheSameColumn) this.value[i][j] = 0;
         else if (sinesLeft.length === 0) throw new Error("No sines left. Cannot insert anything.");
-        else { this.value[i][j] = sinesLeft[0]; sinesLeft.shift(); }
+        else {
+          this.value[i][j] = sinesLeft[0];
+          sinesLeft.shift();
+        }
       }
     }
   }
 
-  #generateMainDiagonal(stamp, dim){
-    if(typeof stamp !== "string") throw new Error("Not given a string stamp");
-    if(stamp.length !== 2) throw new Error("The stamp is not long 2");
+  #generateMainDiagonal(stamp, dim) {
+    if (typeof stamp !== "string") throw new Error("Not given a string stamp");
+    if (stamp.length !== 2) throw new Error("The stamp is not long 2");
     stamp = stamp.split("");
     stamp = stamp.map((char) => axisIdentifiers.indexOf(char));
-    if(-1 in stamp) throw new Error("Not valid stamp. Unrecognized char");
+    if (-1 in stamp) throw new Error("Not valid stamp. Unrecognized char");
     const mainDiagonal = Array(dim).fill("1");
     mainDiagonal[stamp[0]] = "cos";
     mainDiagonal[stamp[1]] = "cos";
@@ -164,15 +171,16 @@ class PointND {
     this.coordinates = coordinates;
   }
 
-  static origin(nthDimension) { return new PointND(...Array(nthDimension).fill(0)); }
+  static origin(nthDimension) {
+    return new PointND(...Array(nthDimension).fill(0));
+  }
 
   transform(matrix) {
     let transformed = this;
-    let matrixCols = matrix[0].length, matrixRows = matrix.length;
-    if (matrixCols === this.nthDimension + 1 && matrixRows === matrixCols - 1)
-      transformed = matrixPointMultiplication(matrix, new PointND(...transformed.coordinates, 1));
-    else
-      transformed = matrixPointMultiplication(matrix, transformed);
+    let matrixCols = matrix[0].length,
+      matrixRows = matrix.length;
+    if (matrixCols === this.nthDimension + 1 && matrixRows === matrixCols - 1) transformed = matrixPointMultiplication(matrix, new PointND(...transformed.coordinates, 1));
+    else transformed = matrixPointMultiplication(matrix, transformed);
     return new PointND(...transformed.coordinates);
   }
 
@@ -227,8 +235,8 @@ class PointND {
       context.fillStyle = color;
       context.fill();
       context.closePath();
-    } else if (this.nthDimension === 1) (new PointND(...this.coordinates, 0)).draw(depth);
-    else if (this.nthDimension === 0) (new PointND(0, 0)).draw(depth);
+    } else if (this.nthDimension === 1) new PointND(...this.coordinates, 0).draw(depth);
+    else if (this.nthDimension === 0) new PointND(0, 0).draw(depth);
   }
 
   distanceSquare(point) {
@@ -257,7 +265,7 @@ class MeshND {
     return new PointND(...barycenterCoords);
   }
   render(dimensions, isOrto = false, scale = DEFAULT_RENDER_SCALE) {
-    this.vertices.forEach(vertex => {
+    this.vertices.forEach((vertex) => {
       let projectedVertex = vertex.projectInto(2, isOrto);
       let sampleForHigherDimension = undefined;
       let depth = 1;
@@ -265,7 +273,7 @@ class MeshND {
       if (vertex.nthDimension > 2) depth = vertex.coordinates[2];
       projectedVertex.draw(depth, scale, sampleForHigherDimension, dimensions);
     });
-    this.sides.forEach(side => {
+    this.sides.forEach((side) => {
       side.render(isOrto, scale, dimensions);
     });
   }
@@ -274,8 +282,8 @@ class MeshND {
     if (amountOfZeros < 0) throw new Error("Impossible extension in a lower dimension");
     if (amountOfZeros === 0) return this;
     let zerosToAppend = Array(amountOfZeros).fill(0);
-    this.vertices = this.vertices.map(vertex => new PointND(...vertex.coordinates.concat(zerosToAppend)));
-    this.sides = this.sides.map(segment => {
+    this.vertices = this.vertices.map((vertex) => new PointND(...vertex.coordinates.concat(zerosToAppend)));
+    this.sides = this.sides.map((segment) => {
       let extendedStart = new PointND(...segment.start.coordinates, ...zerosToAppend);
       let extendedEnd = new PointND(...segment.end.coordinates, ...zerosToAppend);
       let extendedSegment = new SegmentND(extendedStart, extendedEnd);
@@ -285,8 +293,8 @@ class MeshND {
   }
 
   transform(matrix) {
-    this.vertices = this.vertices.map(vertex => vertex.transform(matrix));
-    this.sides = this.sides.map(side => side.transform(matrix));
+    this.vertices = this.vertices.map((vertex) => vertex.transform(matrix));
+    this.sides = this.sides.map((side) => side.transform(matrix));
     return new MeshND(this.vertices, this.sides);
   }
 }
@@ -296,7 +304,8 @@ class SegmentND {
     if (extremes[0].nthDimension !== extremes[1].nthDimension) throw new Error("Watch out! You put two different PointND", extremes[0].coordinates, extremes[1].coordinates);
     this.nthDimension = extremes[0].nthDimension;
     this.extremes = extremes;
-    this.start = extremes[0]; this.end = extremes[1];
+    this.start = extremes[0];
+    this.end = extremes[1];
   }
   render(isOrto = false, scale = DEFAULT_RENDER_SCALE, minRotationDimensions = undefined) {
     let hyperdepth1 = undefined;
@@ -353,7 +362,7 @@ class Hypercube extends MeshND {
     let vertices = [];
     for (let i = 0; i < Math.pow(2, dimensions); i++) {
       let vertex = [];
-      for (let j = 0; j < dimensions; j++) vertex.push((i & (1 << j)) ? side / 2 : -side / 2);
+      for (let j = 0; j < dimensions; j++) vertex.push(i & (1 << j) ? side / 2 : -side / 2);
       vertices.push(new PointND(...vertex));
     }
     return vertices;
@@ -381,7 +390,7 @@ class Simplex extends MeshND {
   }
   static #createSimplex(dimensions, side, pointstamp = []) {
     if (dimensions === 1) {
-      return (new Hypercube(1, side)).vertices;
+      return new Hypercube(1, side).vertices;
     } else {
       let oldSimplex = new Simplex(dimensions - 1, side, pointstamp);
       let oldBarycenter = oldSimplex.barycenter();
@@ -426,7 +435,7 @@ class Hypersphere extends MeshND {
   static #createHypersphere(dimensions, radius, complexity, pointstamp = []) {
     let stepAngle = Math.PI / complexity;
     if (dimensions === 1) {
-      return { vertices: (new Hypercube(1, radius)).vertices, sides: [] };
+      return { vertices: new Hypercube(1, radius).vertices, sides: [] };
     }
     if (dimensions === 2) {
       // Caso base: restituisci un array con un singolo punto
@@ -437,7 +446,7 @@ class Hypersphere extends MeshND {
       let sides = [];
       let previousHypersphereSection = undefined;
       for (let i = 0; i <= complexity; i++) {
-        let w = radius * (Math.cos(Math.PI - i * Math.PI / complexity));
+        let w = radius * Math.cos(Math.PI - (i * Math.PI) / complexity);
         let hypersphereSectionRadius = Math.sqrt(radius * radius - w * w);
         let hypersphereSection = Hypersphere.#createHypersphere(dimensions - 1, hypersphereSectionRadius, complexity, pointstamp.concat(w));
         vertices.push(...hypersphereSection.vertices);
