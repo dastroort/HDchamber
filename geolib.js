@@ -1,5 +1,6 @@
 const canvas = document.querySelector("canvas");
-let context = canvas.getContext("2d");
+const CONTEXT_DIMENSION = 2;
+let context = canvas.getContext(CONTEXT_DIMENSION + "d");
 const screenDimensions = { width: window.innerWidth, height: (77.5 / 100) * window.innerHeight };
 [canvas.width, canvas.height] = [screenDimensions.width, screenDimensions.height];
 
@@ -9,6 +10,8 @@ const DEFAULT_COMPLEXITY = 8;
 const cameraDistance = 3;
 const cameraZoom = 2;
 const axisIdentifiers = "xyzwvu";
+const DEPTH_MAPPING_DIMENSION = 3;
+const COLOR_MAPPING_DIMENSION = 4;
 
 // No more for loops. Instead, forEach and reduce are used to improve readability and performance.
 // Time complexity: O(m * n) where m is the number of rows and n is the number of columns.
@@ -18,7 +21,7 @@ function matrixPointMultiplication(matrix, point) {
   let resultCoordinates = [];
   const matrixColumns = matrix[0].length;
   // Check if the matrix columns match the point's dimensions before proceeding with the multiplication.
-  if (matrixColumns !== point.nthDimension) throw new Error(`Matrix multiplication cannot exist:\nmatrix length:\t${matrixColumns},\npoint length:\t${point.nthDimension}`);
+  if (matrixColumns !== point.nthDimension()) throw new Error(`Matrix multiplication cannot exist:\nmatrix length:\t${matrixColumns},\npoint length:\t${point.nthDimension()}`);
   matrix.forEach((row, rowIndex) => {
     // Use reduce to calculate the weighted sum of the current row and the point's coordinates. No more nested loops.
     let sum = row.reduce((sum, currentValue, valueIndex) => {
@@ -167,7 +170,7 @@ class SingletonMatrix {
 
 class PointND {
   constructor(...coordinates) {
-    this.nthDimension = coordinates.length;
+    this.nthDimension = () => coordinates.length;
     this.coordinates = coordinates;
   }
 
@@ -185,58 +188,46 @@ class PointND {
   }
 
   convertTo(dimensions) {
-    let extension = [];
     let dimensionsLeft = dimensions - this.nthDimension;
-    for (let i = 0; i < dimensionsLeft; i++) extension[i] = 0;
-    return new PointND(...this.coordinates, ...extension);
+    for (let i = 0; i < dimensionsLeft; i++) this.coordinates.push(0);
   }
 
-  projectInto(dimensions = 2, isOrto = false) {
-    let dimensionsLeft = this.nthDimension - dimensions;
-    if (dimensionsLeft === 0) return this;
-
-    let perspectiveFactor = cameraZoom / (cameraDistance - this.coordinates[this.coordinates.length - 1]);
-    let projectionMatrix = [];
-    for (let i = 0; i < this.nthDimension; i++) {
-      projectionMatrix[i] = [];
-      for (let j = 0; j < this.nthDimension; j++) {
-        if (i === j && i !== this.nthDimension - 1) {
-          if (this.nthDimension === 3 && isOrto) perspectiveFactor = 1;
-          projectionMatrix[i][j] = Math.sqrt(perspectiveFactor);
-        } else projectionMatrix[i][j] = 0;
+  projectInto(dimensions = CONTEXT_DIMENSION, isOrthogonalProjection = false) {
+    while (this.nthDimension > dimensions) {
+      const lastCoordinate = this.coordinates.pop();
+      this.nthDimension = this.coordinates.length;
+      if (!isOrthogonalProjection) {
+        const perspectiveFactor = cameraZoom / (cameraDistance - lastCoordinate);
+        this.coordinates = this.coordinates.map((coordinate) => coordinate * perspectiveFactor);
       }
     }
-    projectionMatrix.pop();
-    let projected = matrixPointMultiplication(projectionMatrix, this);
-    return projected.projectInto(dimensions, isOrto);
+    return this;
   }
 
-  draw(depth, scale = DEFAULT_RENDER_SCALE, nthDimensionPoint = undefined, minRotationDimensions = undefined) {
-    // only a point in 2 dimensions can be drawn on a screen
-    if (this.nthDimension > 2) throw new Error("This point has too many dimensions to be drawn. You should project it");
-    if (this.nthDimension === 2) {
-      context.beginPath();
-      let positionX = scale * this.coordinates[0] + 5 + screenDimensions.width / 2;
-      let positionY = scale * this.coordinates[1] + 5 + screenDimensions.height / 2;
-      let pointSize = 5 / (cameraDistance - 2 * depth + 0.5);
-      context.arc(positionX, positionY, pointSize, 0, 2 * Math.PI, false);
-      context.stroke();
-      context.strokeStyle = "rgba(0,0,0,0.25)";
+  draw(depthSample, colorSample = undefined, rotationScope = undefined, scale = DEFAULT_RENDER_SCALE) {
+    if (this.nthDimension > CONTEXT_DIMENSION) throw new Error("This point has too many dimensions to be drawn. You should project it");
+    if (this.nthDimension < CONTEXT_DIMENSION) this.convertTo(CONTEXT_DIMENSION);
 
-      // Calcola il colore basato su hyperdepth
-      let color = `hsla(270, 9.8%, 80%, ${250 / (cameraDistance - depth)}%)`;
-      if (minRotationDimensions !== undefined && minRotationDimensions > 3) {
-        let lastHigherDimensionCoordinate = nthDimensionPoint.coordinates[nthDimensionPoint.coordinates.length - 1];
-        let hue = 36 * lastHigherDimensionCoordinate + 270; // Hue secondo i commenti
-        color = `hsla(${hue}, 100%, 50%, ${250 / (cameraDistance - depth)}%)`;
-      }
+    context.beginPath();
+    const MAX_DRAWN_POINT_SIZE = 5;
+    let positionX = scale * this.coordinates[0] + (MAX_DRAWN_POINT_SIZE + screenDimensions.width) / 2;
+    let positionY = scale * this.coordinates[1] + (MAX_DRAWN_POINT_SIZE + screenDimensions.height) / 2;
+    let pointSize = (10 * MAX_DRAWN_POINT_SIZE) / (cameraDistance - depthSample);
+    context.arc(positionX, positionY, pointSize, 0, 2 * Math.PI, false);
+    context.stroke();
+    context.strokeStyle = "rgba(0,0,0,0.25)";
 
-      // Applica il colore calcolato come riempimento
-      context.fillStyle = color;
-      context.fill();
-      context.closePath();
-    } else if (this.nthDimension === 1) new PointND(...this.coordinates, 0).draw(depth);
-    else if (this.nthDimension === 0) new PointND(0, 0).draw(depth);
+    // Calcola il colore basato su hyperdepth
+    let color = `hsla(270, 9.8%, 80%, ${250 / (cameraDistance - depthSample)}%)`;
+    if (rotationScope !== undefined && rotationScope >= COLOR_MAPPING_DIMENSION) {
+      let hue = 36 * colorSample + 270; // Hue secondo i commenti
+      color = `hsla(${hue}, 100%, 50%, ${250 / (cameraDistance - depthSample)}%)`;
+    }
+
+    // Applica il colore calcolato come riempimento
+    context.fillStyle = color;
+    context.fill();
+    context.closePath();
   }
 
   distanceSquare(point) {
@@ -250,7 +241,7 @@ class MeshND {
   constructor(vertices, sides = []) {
     this.vertices = vertices;
     this.sides = sides;
-    this.nthDimension = this.vertices[0].nthDimension;
+    this.nthDimension = () => this.vertices[0].nthDimension;
   }
   barycenter() {
     let barycenterCoords = [];
@@ -274,25 +265,19 @@ class MeshND {
       projectedVertex.draw(depth, scale, sampleForHigherDimension, dimensions);
     });
     this.sides.forEach((side) => {
-      side.render(isOrto, scale, dimensions);
+      side.render(isOrthogonalProjection, renderingScale, rotationScope);
     });
   }
   extendIn(dimensions) {
-    let amountOfZeros = dimensions - this.nthDimension;
-    if (amountOfZeros < 0) throw new Error("Impossible extension in a lower dimension");
-    if (amountOfZeros === 0) return this;
-    let zerosToAppend = Array(amountOfZeros).fill(0);
-    this.vertices = this.vertices.map((vertex) => new PointND(...vertex.coordinates.concat(zerosToAppend)));
-    this.sides = this.sides.map((segment) => {
-      let extendedStart = new PointND(...segment.start.coordinates, ...zerosToAppend);
-      let extendedEnd = new PointND(...segment.end.coordinates, ...zerosToAppend);
-      let extendedSegment = new SegmentND(extendedStart, extendedEnd);
-      return extendedSegment;
+    this.vertices.forEach((vertex) => {
+      for (let i = 0; i < dimensions - this.nthDimension; i++) {
+        vertex.coordinates.push(0);
+      }
     });
-    return new MeshND(this.vertices, this.sides);
   }
 
   transform(matrix) {
+    this.extendIn(matrix.length);
     this.vertices = this.vertices.map((vertex) => vertex.transform(matrix));
     this.sides = this.sides.map((side) => side.transform(matrix));
     return new MeshND(this.vertices, this.sides);
@@ -301,27 +286,27 @@ class MeshND {
 class SegmentND {
   constructor(...extremes) {
     if (extremes.length !== 2) throw new Error("A segment has not got " + extremes.length + " extremes");
-    if (extremes[0].nthDimension !== extremes[1].nthDimension) throw new Error("Watch out! You put two different PointND", extremes[0].coordinates, extremes[1].coordinates);
-    this.nthDimension = extremes[0].nthDimension;
+    if (extremes[0].nthDimension() !== extremes[1].nthDimension()) throw new Error("Watch out! You put two different PointND", extremes[0].coordinates, extremes[1].coordinates);
+    this.nthDimension = () => extremes[0].nthDimension;
     this.extremes = extremes;
     this.start = extremes[0];
     this.end = extremes[1];
   }
-  render(isOrto = false, scale = DEFAULT_RENDER_SCALE, minRotationDimensions = undefined) {
+  render(isOrthogonalProjection = false, scale = DEFAULT_RENDER_SCALE, rotationScope = undefined) {
     let hyperdepth1 = undefined;
     let hyperdepth2 = undefined;
-    if (minRotationDimensions > 3) {
+    if (rotationScope > 3) {
       hyperdepth1 = this.start.coordinates[this.start.coordinates.length - 1];
       hyperdepth2 = this.end.coordinates[this.end.coordinates.length - 1];
     }
     let depth = 1;
     if (this.nthDimension > 2) {
-      this.start = this.start.projectInto(3, isOrto);
-      this.end = this.end.projectInto(3, isOrto);
+      this.start = this.start.projectInto(3, isOrthogonalProjection);
+      this.end = this.end.projectInto(3, isOrthogonalProjection);
       depth = (this.start.coordinates[2] + this.end.coordinates[2]) / 2;
     }
-    this.start = this.start.projectInto(2, isOrto);
-    this.end = this.end.projectInto(2, isOrto);
+    this.start = this.start.projectInto(2, isOrthogonalProjection);
+    this.end = this.end.projectInto(2, isOrthogonalProjection);
     let positionX = scale * this.start.coordinates[0] + 5 + screenDimensions.width / 2;
     let positionY = scale * this.start.coordinates[1] + 5 + screenDimensions.height / 2;
     let positionX_1 = scale * this.end.coordinates[0] + 5 + screenDimensions.width / 2;

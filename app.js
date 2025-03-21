@@ -195,21 +195,21 @@ function renderEnvironment(input) {
   // Calcolo gli angoli di rotazione nell'istante attuale
   let angles = app.guiHandlers.rotation.angularSpeedFactors.map((factor) => (factor * app.angle) % (2 * Math.PI));
 
-  let highestRotationDimension;
+  let rotationScope;
   app.guiHandlers.rotation.planes.forEach((plane) => {
     let dimensions = plane.split("");
     dimensions = dimensions.map((axis) => GEOLIB.axisIdentifiers.indexOf(axis) + 1);
     dimensions.forEach((d) => {
-      if (!highestRotationDimension) {
-        highestRotationDimension = d;
+      if (!rotationScope) {
+        rotationScope = d;
       } else {
-        highestRotationDimension = Math.max(highestRotationDimension, d);
+        rotationScope = Math.max(rotationScope, d);
       }
     });
   });
   // Aggiorno il titolo
   const h1 = document.querySelector("h1");
-  h1.innerHTML = `A ${app.dimensionsToRender}-${input} rotating in ${highestRotationDimension}D`;
+  h1.innerHTML = `A ${app.dimensionsToRender}-${input} rotating in ${rotationScope}D`;
   // Applico la rotazione
   for (let i = 0; i < app.guiHandlers.rotation.planes.length; i++) {
     r.set("r", [app.guiHandlers.rotation.planes[i], angles[i]]);
@@ -218,6 +218,6 @@ function renderEnvironment(input) {
   // Distruggo la matrice di rotazione. E' importante farlo per evitare memory leaks
   r.destroy();
   // Disegno la mesh
-  mesh.render(highestRotationDimension, app.guiHandlers.projection.isOrthogonalProjection);
+  mesh.render(rotationScope, app.guiHandlers.projection.isOrthogonalProjection);
   requestAnimationFrame(() => tic(input));
 }
