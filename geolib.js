@@ -33,6 +33,16 @@ function matrixPointMultiplication(matrix, point) {
   return new PointND(...resultCoordinates);
 }
 
+function rotationScope(planes) {
+  let scopeIndex = 0;
+  planes.forEach((plane) => {
+    const firstPlaneAxis = plane[0];
+    const secondPlaneAxis = plane[1];
+    scopeIndex = Math.max(scopeIndex, axisIdentifiers.indexOf(firstPlaneAxis), axisIdentifiers.indexOf(secondPlaneAxis));
+  });
+  return scopeIndex + 1;
+}
+
 // ---------------------- HELPER METHODS TO CREATE A WELLKNOWN TRASFORMATION MATRIX ----------------------
 class SingletonMatrix {
   static #instance = null;
@@ -166,6 +176,19 @@ class SingletonMatrix {
   // }
 
   // static symmetry() { return 1; }
+  extendIn(dimensions) {
+    this.value.forEach((row) => {
+      while (row.length < dimensions) {
+        row.push(0);
+      }
+    });
+
+    while (this.value.length < dimensions) {
+      const newRow = new Array(dimensions).fill(0);
+      newRow[this.value.length] = 1;
+      this.value.push(newRow);
+    }
+  }
 }
 
 class PointND {
@@ -193,13 +216,14 @@ class PointND {
   }
 
   projectInto(dimensions = CONTEXT_DIMENSION, isOrthogonalProjection = false) {
-    while (this.nthDimension > dimensions) {
-      const lastCoordinate = this.coordinates.pop();
-      this.nthDimension = this.coordinates.length;
-      if (!isOrthogonalProjection) {
+    let vertexDimension = this.nthDimension();
+    while (vertexDimension > dimensions) {
+      let lastCoordinate = this.coordinates.pop();
+      if (!isOrthogonalProjection || vertexDimension > DEPTH_MAPPING_DIMENSION) {
         const perspectiveFactor = cameraZoom / (cameraDistance - lastCoordinate);
         this.coordinates = this.coordinates.map((coordinate) => coordinate * perspectiveFactor);
       }
+      vertexDimension -= 1;
     }
     return this;
   }
@@ -209,10 +233,13 @@ class PointND {
     if (this.nthDimension < CONTEXT_DIMENSION) this.convertTo(CONTEXT_DIMENSION);
 
     context.beginPath();
-    const MAX_DRAWN_POINT_SIZE = 5;
-    let positionX = scale * this.coordinates[0] + (MAX_DRAWN_POINT_SIZE + screenDimensions.width) / 2;
-    let positionY = scale * this.coordinates[1] + (MAX_DRAWN_POINT_SIZE + screenDimensions.height) / 2;
-    let pointSize = (10 * MAX_DRAWN_POINT_SIZE) / (cameraDistance - depthSample);
+    const MAX_DRAWN_POINT_SIZE = 8;
+    let pointSize = MAX_DRAWN_POINT_SIZE / (cameraDistance - depthSample);
+    if (isNaN(pointSize)) throw new Error("pointSize non è un numero");
+    let positionX = scale * this.coordinates[0] + MAX_DRAWN_POINT_SIZE / 2 + screenDimensions.width / 2;
+    if (isNaN(positionX)) throw new Error("PositionX non è un numero");
+    let positionY = scale * this.coordinates[1] + MAX_DRAWN_POINT_SIZE / 2 + screenDimensions.height / 2;
+    if (isNaN(positionY)) throw new Error("PositionY non è un numero");
     context.arc(positionX, positionY, pointSize, 0, 2 * Math.PI, false);
     context.stroke();
     context.strokeStyle = "rgba(0,0,0,0.25)";
@@ -241,7 +268,7 @@ class MeshND {
   constructor(vertices, sides = []) {
     this.vertices = vertices;
     this.sides = sides;
-    this.nthDimension = () => this.vertices[0].nthDimension;
+    this.nthDimension = () => this.vertices[0].nthDimension();
   }
   barycenter() {
     let barycenterCoords = [];
@@ -255,22 +282,30 @@ class MeshND {
     }
     return new PointND(...barycenterCoords);
   }
-  render(dimensions, isOrto = false, scale = DEFAULT_RENDER_SCALE) {
+  static #pickColorSample(vertex) {
+    return vertex.coordinates.at(-1);
+  }
+  static #pickDepthSample(vertex) {
+    return vertex.coordinates[CONTEXT_DIMENSION - 1 + 1];
+  }
+  render(rotationScope, isOrthogonalProjection = false, renderingScale = DEFAULT_RENDER_SCALE) {
     this.vertices.forEach((vertex) => {
-      let projectedVertex = vertex.projectInto(2, isOrto);
-      let sampleForHigherDimension = undefined;
-      let depth = 1;
-      if (dimensions > 3) sampleForHigherDimension = vertex;
-      if (vertex.nthDimension > 2) depth = vertex.coordinates[2];
-      projectedVertex.draw(depth, scale, sampleForHigherDimension, dimensions);
+      let colorSample = undefined;
+      let projectedVertex = new PointND(...vertex.coordinates);
+      projectedVertex = projectedVertex.projectInto(CONTEXT_DIMENSION, isOrthogonalProjection);
+      let depthSample = 1;
+      if (rotationScope >= COLOR_MAPPING_DIMENSION || this.nthDimension() >= COLOR_MAPPING_DIMENSION) colorSample = MeshND.#pickColorSample(vertex);
+      if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.#pickDepthSample(vertex);
+      projectedVertex.draw(depthSample, colorSample, rotationScope);
     });
     this.sides.forEach((side) => {
       side.render(isOrthogonalProjection, renderingScale, rotationScope);
     });
   }
   extendIn(dimensions) {
+    let oldDimension = this.nthDimension();
     this.vertices.forEach((vertex) => {
-      for (let i = 0; i < dimensions - this.nthDimension; i++) {
+      for (let i = 0; i < dimensions - oldDimension; i++) {
         vertex.coordinates.push(0);
       }
     });
@@ -559,4 +594,4 @@ function resizeCanvas() {
   context.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
 }
 
-export { axisIdentifiers, SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas };
+export { axisIdentifiers, rotationScope, SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas };

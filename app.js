@@ -6,7 +6,7 @@ const app = {
   finalTime: null,
   deltaTime: () => app.finalTime - app.initialTime,
   angularSpeed: Math.PI / 4, // rad/s
-  dimensionsToRender: 2,
+  dimensionsToRender: 4,
   MIN_DIMENSIONS: 2,
   MAX_DIMENSIONS: 6,
   angle: 0,
@@ -114,8 +114,8 @@ app.guiHandlers.dimensions.button.addEventListener("click", () => {
 app.guiHandlers.rotation = {
   button: document.querySelector(".button.rotation-handler"),
   dropmenu: document.querySelector(".rotation-handler .dropmenu"),
-  planes: ["xz", "xy", "yw", "zw"],
-  angularSpeedFactors: [1, 1, 0.5, 0.75],
+  planes: ["xz", "xy"],
+  angularSpeedFactors: [1, 1],
   planeButtons: null,
   options: null,
 };
@@ -184,6 +184,8 @@ function tic(input) {
 
 function renderEnvironment(input) {
   const mesh = new (meshesMap.get(input))(app.dimensionsToRender);
+  const rotationScope = GEOLIB.rotationScope(app.guiHandlers.rotation.planes);
+  if (mesh.nthDimension() < rotationScope) mesh.extendIn(rotationScope);
   GEOLIB.uploadEnvironment();
   // Creo la matrice di rotazione
   let r = GEOLIB.SingletonMatrix.init(app.dimensionsToRender);
@@ -195,24 +197,13 @@ function renderEnvironment(input) {
   // Calcolo gli angoli di rotazione nell'istante attuale
   let angles = app.guiHandlers.rotation.angularSpeedFactors.map((factor) => (factor * app.angle) % (2 * Math.PI));
 
-  let rotationScope;
-  app.guiHandlers.rotation.planes.forEach((plane) => {
-    let dimensions = plane.split("");
-    dimensions = dimensions.map((axis) => GEOLIB.axisIdentifiers.indexOf(axis) + 1);
-    dimensions.forEach((d) => {
-      if (!rotationScope) {
-        rotationScope = d;
-      } else {
-        rotationScope = Math.max(rotationScope, d);
-      }
-    });
-  });
   // Aggiorno il titolo
   const h1 = document.querySelector("h1");
   h1.innerHTML = `A ${app.dimensionsToRender}-${input} rotating in ${rotationScope}D`;
   // Applico la rotazione
   for (let i = 0; i < app.guiHandlers.rotation.planes.length; i++) {
     r.set("r", [app.guiHandlers.rotation.planes[i], angles[i]]);
+    r.extendIn(rotationScope);
     mesh.transform(r.value);
   }
   // Distruggo la matrice di rotazione. E' importante farlo per evitare memory leaks
