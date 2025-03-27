@@ -100,9 +100,10 @@ app.guiHandlers.dimensions.button.addEventListener("click", () => {
   app.guiHandlers.dimensions.input = prompt(`Enter the number of dimensions of the shape you want to see (${app.MIN_DIMENSIONS}-${app.MAX_DIMENSIONS}):`) * 1;
 
   if (!isValidNumberOfDimensions(app.guiHandlers.dimensions.input)) {
-    alert(`Invalid number of dimensions: ${app.guiHandlers.dimension.input}`);
+    alert(`Invalid number of dimensions: ${app.guiHandlers.dimensions.input}`);
+  } else {
+    app.dimensionsToRender = app.guiHandlers.dimensions.input;
   }
-  app.dimensionsToRender = app.guiHandlers.dimensions.input;
 
   if (app.isRendering) {
     const h1 = document.querySelector("h1");

@@ -12,6 +12,9 @@ const cameraZoom = 2;
 const axisIdentifiers = "xyzwvu";
 const DEPTH_MAPPING_DIMENSION = 3;
 const COLOR_MAPPING_DIMENSION = 4;
+const MAX_DRAWN_POINT_SIZE = 8;
+const BRIGHTNESS = 300;
+const FOG = 0.5;
 
 // No more for loops. Instead, forEach and reduce are used to improve readability and performance.
 // Time complexity: O(m * n) where m is the number of rows and n is the number of columns.
@@ -211,12 +214,12 @@ class PointND {
   }
 
   convertTo(dimensions) {
-    let dimensionsLeft = dimensions - this.nthDimension;
+    let dimensionsLeft = dimensions - this.nthDimension();
     for (let i = 0; i < dimensionsLeft; i++) this.coordinates.push(0);
   }
 
   projectInto(dimensions = CONTEXT_DIMENSION, isOrthogonalProjection = false) {
-    let vertexDimension = this.nthDimension();
+    let vertexDimension = this.coordinates.length;
     while (vertexDimension > dimensions) {
       let lastCoordinate = this.coordinates.pop();
       if (!isOrthogonalProjection || vertexDimension > DEPTH_MAPPING_DIMENSION) {
@@ -228,12 +231,11 @@ class PointND {
     return this;
   }
 
-  draw(depthSample, colorSample = undefined, rotationScope = undefined, scale = DEFAULT_RENDER_SCALE) {
+  draw(depthSample, colorSample = undefined, dimensionalScope = undefined, scale = DEFAULT_RENDER_SCALE) {
     if (this.nthDimension > CONTEXT_DIMENSION) throw new Error("This point has too many dimensions to be drawn. You should project it");
     if (this.nthDimension < CONTEXT_DIMENSION) this.convertTo(CONTEXT_DIMENSION);
 
     context.beginPath();
-    const MAX_DRAWN_POINT_SIZE = 8;
     let pointSize = MAX_DRAWN_POINT_SIZE / (cameraDistance - depthSample);
     if (isNaN(pointSize)) throw new Error("pointSize non è un numero");
     let positionX = scale * this.coordinates[0] + MAX_DRAWN_POINT_SIZE / 2 + screenDimensions.width / 2;
@@ -245,10 +247,10 @@ class PointND {
     context.strokeStyle = "rgba(0,0,0,0.25)";
 
     // Calcola il colore basato su hyperdepth
-    let color = `hsla(270, 9.8%, 80%, ${250 / (cameraDistance - depthSample)}%)`;
-    if (rotationScope !== undefined && rotationScope >= COLOR_MAPPING_DIMENSION) {
+    let color = `hsla(270, 9.8%, 80%, ${BRIGHTNESS / ((1 + FOG) * (cameraDistance - depthSample))}%)`;
+    if (dimensionalScope !== undefined && dimensionalScope >= COLOR_MAPPING_DIMENSION) {
       let hue = 36 * colorSample + 270; // Hue secondo i commenti
-      color = `hsla(${hue}, 100%, 50%, ${250 / (cameraDistance - depthSample)}%)`;
+      color = `hsla(${hue}, 100%, 50%, ${BRIGHTNESS / ((1 + FOG) * (cameraDistance - depthSample))}%)`;
     }
 
     // Applica il colore calcolato come riempimento
@@ -273,11 +275,11 @@ class MeshND {
   barycenter() {
     let barycenterCoords = [];
     let sum = 0;
-    for (let dim = 0; dim < this.vertices[0].nthDimension; dim++) {
+    for (let dim = 0; dim < this.vertices[0].nthDimension(); dim++) {
       for (let i = 0; i < this.vertices.length; i++) {
         sum += this.vertices[i].coordinates[dim];
       }
-      barycenterCoords.push(sum / this.vertices.length);
+      barycenterCoords.push(sum / this.nthDimension());
       sum = 0;
     }
     return new PointND(...barycenterCoords);
@@ -294,12 +296,14 @@ class MeshND {
       let projectedVertex = new PointND(...vertex.coordinates);
       projectedVertex = projectedVertex.projectInto(CONTEXT_DIMENSION, isOrthogonalProjection);
       let depthSample = 1;
-      if (rotationScope >= COLOR_MAPPING_DIMENSION || this.nthDimension() >= COLOR_MAPPING_DIMENSION) colorSample = MeshND.#pickColorSample(vertex);
+      if (rotationScope >= COLOR_MAPPING_DIMENSION || this.nthDimension() >= COLOR_MAPPING_DIMENSION) {
+        colorSample = MeshND.#pickColorSample(vertex);
+      }
       if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.#pickDepthSample(vertex);
-      projectedVertex.draw(depthSample, colorSample, rotationScope);
+      projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()));
     });
     this.sides.forEach((side) => {
-      side.render(isOrthogonalProjection, renderingScale, rotationScope);
+      side.render(isOrthogonalProjection, renderingScale, Math.max(rotationScope, side.start.nthDimension()));
     });
   }
   extendIn(dimensions) {
@@ -322,45 +326,49 @@ class SegmentND {
   constructor(...extremes) {
     if (extremes.length !== 2) throw new Error("A segment has not got " + extremes.length + " extremes");
     if (extremes[0].nthDimension() !== extremes[1].nthDimension()) throw new Error("Watch out! You put two different PointND", extremes[0].coordinates, extremes[1].coordinates);
-    this.nthDimension = () => extremes[0].nthDimension;
+    this.nthDimension = () => extremes[0].nthDimension();
     this.extremes = extremes;
     this.start = extremes[0];
     this.end = extremes[1];
   }
   render(isOrthogonalProjection = false, scale = DEFAULT_RENDER_SCALE, rotationScope = undefined) {
-    let hyperdepth1 = undefined;
-    let hyperdepth2 = undefined;
-    if (rotationScope > 3) {
-      hyperdepth1 = this.start.coordinates[this.start.coordinates.length - 1];
-      hyperdepth2 = this.end.coordinates[this.end.coordinates.length - 1];
+    let colorSample1 = undefined;
+    let colorSample2 = undefined;
+    if (rotationScope >= COLOR_MAPPING_DIMENSION) {
+      colorSample1 = this.start.coordinates.at(-1);
+      colorSample2 = this.end.coordinates.at(-1);
     }
     let depth = 1;
-    if (this.nthDimension > 2) {
+    if (this.nthDimension() >= DEPTH_MAPPING_DIMENSION) {
       this.start = this.start.projectInto(3, isOrthogonalProjection);
       this.end = this.end.projectInto(3, isOrthogonalProjection);
-      depth = (this.start.coordinates[2] + this.end.coordinates[2]) / 2;
+      depth = (this.start.coordinates.at(-1) + this.end.coordinates.at(-1)) / 2;
     }
     this.start = this.start.projectInto(2, isOrthogonalProjection);
     this.end = this.end.projectInto(2, isOrthogonalProjection);
-    let positionX = scale * this.start.coordinates[0] + 5 + screenDimensions.width / 2;
-    let positionY = scale * this.start.coordinates[1] + 5 + screenDimensions.height / 2;
-    let positionX_1 = scale * this.end.coordinates[0] + 5 + screenDimensions.width / 2;
-    let positionY_1 = scale * this.end.coordinates[1] + 5 + screenDimensions.height / 2;
+    let positionX = scale * this.start.coordinates[0] + MAX_DRAWN_POINT_SIZE / 2 + screenDimensions.width / 2;
+    if (isNaN(positionX)) throw new Error("positionX non è un numero.");
+    let positionY = scale * this.start.coordinates[1] + MAX_DRAWN_POINT_SIZE / 2 + screenDimensions.height / 2;
+    if (isNaN(positionY)) throw new Error("positionY non è un numero.");
+    let positionX_1 = scale * this.end.coordinates[0] + MAX_DRAWN_POINT_SIZE / 2 + screenDimensions.width / 2;
+    if (isNaN(positionX_1)) throw new Error("positionX1 non è un numero.");
+    let positionY_1 = scale * this.end.coordinates[1] + MAX_DRAWN_POINT_SIZE / 2 + screenDimensions.height / 2;
+    if (isNaN(positionY_1)) throw new Error("positionY1 non è un numero.");
     context.beginPath();
     context.moveTo(positionX, positionY);
     context.lineTo(positionX_1, positionY_1);
-    let color = `hsla(270, 9.8%, 80%, ${150 / (cameraDistance - depth)}%)`;
+    let color = `hsla(270, 9.8%, 80%, ${BRIGHTNESS / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`;
     context.strokeStyle = color;
     context.lineWidth = 2.5 / (cameraDistance - depth);
 
-    if (hyperdepth1 !== undefined && hyperdepth2 !== undefined) {
-      let hue1 = 36 * hyperdepth1 + 270; // Hue secondo i commenti
-      let hue2 = 36 * hyperdepth2 + 270; // Hue secondo i commenti
+    if (colorSample1 !== undefined && colorSample2 !== undefined) {
+      let hue1 = 36 * colorSample1 + 270; // Hue secondo i commenti
+      let hue2 = 36 * colorSample2 + 270; // Hue secondo i commenti
 
       // Create a linear gradient
       const gradient = context.createLinearGradient(positionX, positionY, positionX_1, positionY_1);
-      gradient.addColorStop(0, `hsla(${hue1}, 100%, 50%, ${150 / (cameraDistance - depth)}%)`);
-      gradient.addColorStop(1, `hsla(${hue2}, 100%, 50%, ${150 / (cameraDistance - depth)}%)`);
+      gradient.addColorStop(0, `hsla(${hue1}, 100%, 50%, ${BRIGHTNESS / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`);
+      gradient.addColorStop(1, `hsla(${hue2}, 100%, 50%, ${BRIGHTNESS / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`);
 
       context.strokeStyle = gradient;
     }
@@ -419,15 +427,22 @@ class Simplex extends MeshND {
       let simplex = new MeshND(vertices);
       for (let i = 0; i < vertices.length; i++) {
         // check if all the vertices have the same number of coordinates
-        if (vertices[i].nthDimension > dimensions) throw new Error("A point has too many coordinates");
-        if (vertices[i].nthDimension < dimensions) vertices[i] = vertices[i].convertTo(dimensions);
+        if (vertices[i].nthDimension() > dimensions) throw new Error("A point has too many coordinates");
+        if (vertices[i].nthDimension() < dimensions) vertices[i].convertTo(dimensions);
       }
       let oppositeNewBarycenterVector = oppositeVector(simplex.barycenter().coordinates);
       // center the simplex with a traslation
-      let T = SingletonMatrix.init(dimensions, dimensions);
-      T.set("t", oppositeNewBarycenterVector);
-      simplex.transform(T.value);
-      T.destroy();
+      simplex.vertices.forEach((vertex) => {
+        for (let i = 0; i < vertex.nthDimension(); i++) {
+          vertex.coordinates[i] += oppositeNewBarycenterVector[i];
+        }
+      });
+      // let T = SingletonMatrix.init(dimensions, dimensions);
+      // T.set("t", oppositeNewBarycenterVector);
+      // simplex.extendIn(T.value[0].length);
+      // console.log(dimensions);
+      // simplex.transform(T.value);
+      // T.destroy();
       return simplex.vertices;
     }
   }
@@ -528,11 +543,16 @@ class Torus extends MeshND {
     let slice = new Hypersphere(dimensions - 1, radius, complexity / 2);
     slice.extendIn(dimensions);
     let zerosToAppend = Array(dimensions - 1).fill(0);
-    let T = SingletonMatrix.init(dimensions, dimensions);
     let vector = [radius + distanceFromTheCenter, ...zerosToAppend];
-    T.set("t", vector);
-    slice.transform(T.value);
-    T.destroy();
+    slice.vertices.forEach((vertex) => {
+      for (let i = 0; i < vertex.nthDimension(); i++) {
+        vertex.coordinates[i] += vector[i];
+      }
+    });
+    // let T = SingletonMatrix.init(dimensions, dimensions);
+    // T.set("t", vector);
+    // slice.transform(T.value);
+    // T.destroy();
     let stamp = "x" + axisIdentifiers[dimensions - 1];
 
     let stepAngle = Math.PI / complexity;
