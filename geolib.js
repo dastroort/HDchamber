@@ -16,37 +16,56 @@ const MAX_DRAWN_POINT_SIZE = 8;
 const BRIGHTNESS = 300;
 const FOG = 0.5;
 
-// No more for loops. Instead, forEach and reduce are used to improve readability and performance.
-// Time complexity: O(m * n) where m is the number of rows and n is the number of columns.
-// Space complexity: O(m) for storing the result coordinates.
-// Acoording to: https://www.bigocalc.com/
+/**
+ * Performs matrix multiplication with a hyper-dimensional point.
+ *
+ * @param {number[][]} matrix - The matrix where each row represents coefficients to multiply with the point's coordinates.
+ * @param {PointND} point - An instance of the PointND class containing n-dimensional coordinates.
+ * @throws {Error} If the dimensions of the matrix do not match the dimensions of the point.
+ * @throws {Error} If the computed sum for any row results in NaN.
+ * @returns {PointND} The transformed point as a new instance of PointND.
+ */
 function matrixPointMultiplication(matrix, point) {
   let resultCoordinates = [];
   const matrixColumns = matrix[0].length;
-  // Check if the matrix columns match the point's dimensions before proceeding with the multiplication.
   if (matrixColumns !== point.nthDimension()) throw new Error(`Matrix multiplication cannot exist:\nmatrix length:\t${matrixColumns},\npoint length:\t${point.nthDimension()}`);
+
   matrix.forEach((row, rowIndex) => {
-    // Use reduce to calculate the weighted sum of the current row and the point's coordinates. No more nested loops.
     let sum = row.reduce((sum, currentValue, valueIndex) => {
       return sum + currentValue * point.coordinates[valueIndex];
-    }, 0); // Without specifying it, it starts from the second value of the array.
+    }, 0);
     if (isNaN(sum)) throw new Error("sum is NaN");
     resultCoordinates[rowIndex] = sum;
   });
   return new PointND(...resultCoordinates);
 }
 
+/**
+ * Determines how “bulky” the composition of rotations is. In other words, it returns the minimum number of dimensions in which the composition of rotations exists.
+ *
+ * @param {string[]} planes - An array of planes, where each plane is represented as a pair of axis identifiers.
+ * @throws {Error} If there is a plane which doesn't include at least one of its axes in `axisIdentifiers`.
+ * @returns {number} The scope index incremented by one.
+ */
 function rotationScope(planes) {
   let scopeIndex = 0;
   planes.forEach((plane) => {
     const firstPlaneAxis = plane[0];
     const secondPlaneAxis = plane[1];
+    if (!axisIdentifiers.includes(firstPlaneAxis) || !axisIdentifiers.includes(secondPlaneAxis)) throw new Error("Invalid plane:", plane);
     scopeIndex = Math.max(scopeIndex, axisIdentifiers.indexOf(firstPlaneAxis), axisIdentifiers.indexOf(secondPlaneAxis));
   });
   return scopeIndex + 1;
 }
 
-// ---------------------- HELPER METHODS TO CREATE A WELLKNOWN TRASFORMATION MATRIX ----------------------
+/**
+ * Represents a singleton matrix, ensuring that only one instance exists at any time.
+ * It supports matrix operations such as translation and rotation, with additional features like extending dimensions.
+ *
+ * @param {number} rows - Number of rows in the matrix.
+ * @param {number} cols - Number of columns in the matrix.
+ * @throws {Error} If attempting to instantiate directly while an instance already exists.
+ */
 class SingletonMatrix {
   static #instance = null;
 
@@ -62,6 +81,14 @@ class SingletonMatrix {
     this.#setDefault(rows, cols);
   }
 
+  /**
+   * Initializes the singleton matrix instance only if there isn't one already; otherwise, the existing one is returned.
+   *
+   * @static
+   * @param {number} rows - Number of rows in the matrix.
+   * @param {number} [cols=rows] - Number of columns in the matrix (default: same as rows).
+   * @returns {SingletonMatrix}
+   */
   static init(rows, cols = rows) {
     if (!SingletonMatrix.#instance) {
       SingletonMatrix.#instance = new SingletonMatrix(rows, cols);
@@ -69,6 +96,13 @@ class SingletonMatrix {
     return SingletonMatrix.#instance;
   }
 
+  /**
+   * Sets default values in the matrix (identity matrix by default).
+   *
+   * @private
+   * @param {number} rows - Number of rows in the matrix.
+   * @param {number} cols - Number of columns in the matrix.
+   */
   #setDefault(rows, cols) {
     for (let i = 0; i < rows; i++) {
       for (let j = 0; j < cols; j++) {
@@ -81,6 +115,14 @@ class SingletonMatrix {
     }
   }
 
+  /**
+   * Sets specific flags and parameters for matrix operations such as translation or rotation.
+   *
+   * @param {string} flag - Operation type ('t' for translation, 'r' for rotation).
+   * @param {*} param - Parameters for the operation (e.g., vector or rotation details).
+   * @param {boolean} [reset=true] - Whether to reset the matrix before applying the operation (default: true).
+   * @throws {Error} If the operation flag is invalid or the parameters are incorrect.
+   */
   set(flag, param, reset = true) {
     if (!SingletonMatrix.#instance) {
       throw new Error("There is no instance.");
@@ -104,6 +146,11 @@ class SingletonMatrix {
     this.#update();
   }
 
+  /**
+   * Destroys the singleton matrix instance.
+   *
+   * @throws {Error} If attempting to destroy a non-existent instance.
+   */
   destroy() {
     if (!SingletonMatrix.#instance) {
       throw new Error("Cannot destroy a null instance.");
@@ -111,6 +158,9 @@ class SingletonMatrix {
     SingletonMatrix.#instance = null;
   }
 
+  /**
+   * Resets the matrix to its default state.
+   */
   reset() {
     let rows = this.rows;
     let cols = this.cols;
@@ -118,11 +168,22 @@ class SingletonMatrix {
     SingletonMatrix.#instance = new SingletonMatrix(rows, cols);
   }
 
+  /**
+   * Updates matrix dimensions after modifications.
+   *
+   * @private
+   */
   #update() {
     this.rows = this.value.length;
     this.cols = this.value[0].length;
   }
 
+  /**
+   * Applies a translation operation to the matrix using a vector.
+   *
+   * @param {number[]} vector - Translation vector matching the matrix dimensions.
+   * @throws {Error} If the vector dimensions are incompatible with the matrix.
+   */
   setTranslation(vector) {
     if (vector.length !== this.rows || vector.length !== this.cols) throw new Error(`Invalid vector value (${vector.length}): Matrix${this.rows}x${this.cols}`);
     for (let i = 0; i < this.rows; i++) {
@@ -130,6 +191,13 @@ class SingletonMatrix {
     }
   }
 
+  /**
+   * Applies a rotation operation to the matrix based on a stamp and an angle.
+   *
+   * @param {string} stamp - Two-character string specifying axis identifiers for rotation.
+   * @param {number} angle - Rotation angle in radians.
+   * @throws {Error} If the matrix is not square or the stamp/angle is invalid.
+   */
   setRotation(stamp, angle) {
     if (this.rows !== this.cols) throw new Error("Not given a square matrix.");
     const mainDiagonalStamp = this.#generateMainDiagonal(stamp, this.rows);
@@ -153,6 +221,15 @@ class SingletonMatrix {
     }
   }
 
+  /**
+   * Generates the main diagonal configuration for a rotation operation.
+   *
+   * @private
+   * @param {string} stamp - Two-character string specifying axis identifiers.
+   * @param {number} dim - Dimension of the matrix.
+   * @returns {string[]} Configuration of the main diagonal.
+   * @throws {Error} If the stamp is invalid or dimensions are incorrect.
+   */
   #generateMainDiagonal(stamp, dim) {
     if (typeof stamp !== "string") throw new Error("Not given a string stamp");
     if (stamp.length !== 2) throw new Error("The stamp is not long 2");
@@ -179,6 +256,12 @@ class SingletonMatrix {
   // }
 
   // static symmetry() { return 1; }
+
+  /**
+   * Extends the matrix to the specified dimensions, adding identity-like rows and columns as needed.
+   *
+   * @param {number} dimensions - The new dimensions of the matrix.
+   */
   extendIn(dimensions) {
     this.value.forEach((row) => {
       while (row.length < dimensions) {
@@ -194,16 +277,36 @@ class SingletonMatrix {
   }
 }
 
+/**
+ * Represents an n-dimensional point and provides various operations for transformation, projection, drawing, and distance calculation.
+ *
+ * @class PointND
+ * @constructor
+ * @param {number[]} coordinates - The coordinates of the point in n-dimensional space.
+ */
 class PointND {
   constructor(...coordinates) {
     this.nthDimension = () => coordinates.length;
     this.coordinates = coordinates;
   }
 
+  /**
+   * Creates an origin point (all coordinates set to 0) in the specified dimensions.
+   *
+   * @static
+   * @param {number} nthDimension - The number of dimensions for the origin point.
+   * @returns {PointND} An origin point in n-dimensional space.
+   */
   static origin(nthDimension) {
     return new PointND(...Array(nthDimension).fill(0));
   }
 
+  /**
+   * Transforms the current point using the given transformation matrix.
+   *
+   * @param {Array<Array<number>>} matrix - The transformation matrix.
+   * @returns {PointND} A new point transformed by the matrix.
+   */
   transform(matrix) {
     let transformed = this;
     let matrixCols = matrix[0].length,
@@ -213,11 +316,23 @@ class PointND {
     return new PointND(...transformed.coordinates);
   }
 
+  /**
+   * Converts the point to a specified number of dimensions by appending zeros.
+   *
+   * @param {number} dimensions - The target number of dimensions.
+   */
   convertTo(dimensions) {
     let dimensionsLeft = dimensions - this.nthDimension();
     for (let i = 0; i < dimensionsLeft; i++) this.coordinates.push(0);
   }
 
+  /**
+   * Projects the point into a lower-dimensional space.
+   *
+   * @param {number} [dimensions=CONTEXT_DIMENSION] - The target number of dimensions for projection.
+   * @param {boolean} [isOrthogonalProjection=false] - Whether the projection is orthogonal.
+   * @returns {PointND} The projected point.
+   */
   projectInto(dimensions = CONTEXT_DIMENSION, isOrthogonalProjection = false) {
     let vertexDimension = this.coordinates.length;
     while (vertexDimension > dimensions) {
@@ -231,6 +346,15 @@ class PointND {
     return this;
   }
 
+  /**
+   * Draws the point on a canvas context using visual parameters.
+   *
+   * @param {number} depthSample - The depth value for rendering the point.
+   * @param {*} [colorSample=undefined] - The color data associated with the point.
+   * @param {number} [dimensionalScope=undefined] - Scope for dimensional color mapping.
+   * @param {number} [scale=DEFAULT_RENDER_SCALE] - Scaling factor for rendering.
+   * @throws {Error} If the point's dimensionality exceeds or is insufficient for the context dimension.
+   */
   draw(depthSample, colorSample = undefined, dimensionalScope = undefined, scale = DEFAULT_RENDER_SCALE) {
     if (this.nthDimension > CONTEXT_DIMENSION) throw new Error("This point has too many dimensions to be drawn. You should project it");
     if (this.nthDimension < CONTEXT_DIMENSION) this.convertTo(CONTEXT_DIMENSION);
@@ -259,19 +383,39 @@ class PointND {
     context.closePath();
   }
 
+  /**
+   * Calculates the squared distance between this point and another point.
+   *
+   * @param {PointND} point - The point to calculate the distance from.
+   * @returns {number} The squared distance between the points.
+   */
   distanceSquare(point) {
     let sum = 0;
-    for (let dim = 0; dim < this.nthDimension; dim++) sum += Math.pow(this.coordinates[dim] - point.coordinates[dim], 2);
+    for (let dim = 0; dim < this.nthDimension(); dim++) sum += Math.pow(this.coordinates[dim] - point.coordinates[dim], 2);
     return sum;
   }
 }
 
+/**
+ * Represents an n-dimensional mesh consisting of vertices and sides, enabling operations such as transformation, rendering, and barycenter calculation.
+ *
+ * @class MeshND
+ * @constructor
+ * @param {PointND[]} vertices - Array of n-dimensional points representing the vertices of the mesh.
+ * @param {SegmentND[]} [sides=[]] - Optional array of sub-mesh sides connected to the vertices.
+ */
 class MeshND {
   constructor(vertices, sides = []) {
     this.vertices = vertices;
     this.sides = sides;
     this.nthDimension = () => this.vertices[0].nthDimension();
   }
+
+  /**
+   * Calculates the barycenter (geometric center) of the mesh based on its vertices.
+   *
+   * @returns {PointND} A point representing the barycenter of the mesh.
+   */
   barycenter() {
     let barycenterCoords = [];
     let sum = 0;
@@ -284,12 +428,36 @@ class MeshND {
     }
     return new PointND(...barycenterCoords);
   }
+
+  /**
+   * Selects the color sample from a vertex based on its last coordinate value.
+   *
+   * @private
+   * @param {PointND} vertex - The vertex from which to pick the color sample.
+   * @returns {*} The color sample value extracted from the vertex.
+   */
   static #pickColorSample(vertex) {
     return vertex.coordinates.at(-1);
   }
+
+  /**
+   * Selects the depth sample from a vertex based on a specific coordinate index.
+   *
+   * @private
+   * @param {PointND} vertex - The vertex from which to pick the depth sample.
+   * @returns {number} The depth sample value extracted from the vertex.
+   */
   static #pickDepthSample(vertex) {
     return vertex.coordinates[CONTEXT_DIMENSION - 1 + 1];
   }
+
+  /**
+   * Renders the mesh by projecting its vertices and sides into the specified dimensional context.
+   *
+   * @param {number} rotationScope - Specifies the scope for rotation mapping.
+   * @param {boolean} [isOrthogonalProjection=false] - Whether the projection is orthogonal.
+   * @param {number} [renderingScale=DEFAULT_RENDER_SCALE] - Scale factor for rendering the mesh.
+   */
   render(rotationScope, isOrthogonalProjection = false, renderingScale = DEFAULT_RENDER_SCALE) {
     this.vertices.forEach((vertex) => {
       let colorSample = undefined;
@@ -306,6 +474,12 @@ class MeshND {
       side.render(isOrthogonalProjection, renderingScale, Math.max(rotationScope, side.start.nthDimension()));
     });
   }
+
+  /**
+   * Extends the dimensionality of the mesh's vertices by appending zeros.
+   *
+   * @param {number} dimensions - The target number of dimensions.
+   */
   extendIn(dimensions) {
     let oldDimension = this.nthDimension();
     this.vertices.forEach((vertex) => {
@@ -315,6 +489,12 @@ class MeshND {
     });
   }
 
+  /**
+   * Transforms the mesh using the specified matrix, applying the transformation to all vertices and sides.
+   *
+   * @param {Array<Array<number>>} matrix - The transformation matrix.
+   * @returns {MeshND} A new mesh transformed by the matrix.
+   */
   transform(matrix) {
     this.extendIn(matrix.length);
     this.vertices = this.vertices.map((vertex) => vertex.transform(matrix));
@@ -322,6 +502,16 @@ class MeshND {
     return new MeshND(this.vertices, this.sides);
   }
 }
+
+/**
+ * Represents an n-dimensional segment defined by two extremes (start and end points).
+ * Provides methods for rendering and applying transformations to the segment.
+ *
+ * @class SegmentND
+ * @constructor
+ * @param {...PointND} extremes - Two PointND instances representing the extremes of the segment.
+ * @throws {Error} If the number of extremes is not two or if the extremes have differing dimensions.
+ */
 class SegmentND {
   constructor(...extremes) {
     if (extremes.length !== 2) throw new Error("A segment has not got " + extremes.length + " extremes");
@@ -331,6 +521,15 @@ class SegmentND {
     this.start = extremes[0];
     this.end = extremes[1];
   }
+
+  /**
+   * Renders the segment on the canvas, optionally applying projection and scaling.
+   *
+   * @param {boolean} [isOrthogonalProjection=false] - Whether to use orthogonal projection.
+   * @param {number} [scale=DEFAULT_RENDER_SCALE] - Scaling factor for rendering the segment.
+   * @param {number} [rotationScope=undefined] - Specifies scope for rotation or color mapping.
+   * @throws {Error} If any computed position or dimension is invalid (e.g., NaN).
+   */
   render(isOrthogonalProjection = false, scale = DEFAULT_RENDER_SCALE, rotationScope = undefined) {
     let colorSample1 = undefined;
     let colorSample2 = undefined;
@@ -376,16 +575,45 @@ class SegmentND {
     context.stroke();
     context.closePath();
   }
+
+  /**
+   * Transforms the segment by applying the specified matrix to both its start and end points.
+   *
+   * @param {Array<Array<number>>} matrix - The transformation matrix.
+   * @returns {SegmentND} A new segment transformed by the matrix.
+   */
   transform(matrix) {
     return new SegmentND(this.start.transform(matrix), this.end.transform(matrix));
   }
 }
+
+/**
+ * Represents an n-dimensional hypercube, extending the MeshND class.
+ * Automatically generates vertices and sides based on the given dimensions and side length.
+ *
+ * @class Hypercube
+ * @extends MeshND
+ * @constructor
+ * @param {number} dimensions - The number of dimensions for the hypercube.
+ * @param {number} [side=DEFAULT_SIZE] - The length of each side of the hypercube (default value is DEFAULT_SIZE).
+ */
 class Hypercube extends MeshND {
   constructor(dimensions, side = DEFAULT_SIZE) {
     let vertices = Hypercube.#createHypercubeVertices(dimensions, side);
     let sides = Hypercube.#createHypercubeSides(dimensions, vertices);
     super(vertices, sides);
   }
+
+  /**
+   * Generates the vertices of the hypercube based on the given dimensions and side length.
+   * Each vertex is calculated using binary representation, toggling between positive and negative values.
+   *
+   * @static
+   * @private
+   * @param {number} dimensions - The number of dimensions for the hypercube.
+   * @param {number} side - The length of each side of the hypercube.
+   * @returns {Array<PointND>} An array of PointND instances representing the vertices of the hypercube.
+   */
   static #createHypercubeVertices(dimensions, side) {
     let vertices = [];
     for (let i = 0; i < Math.pow(2, dimensions); i++) {
@@ -395,7 +623,17 @@ class Hypercube extends MeshND {
     }
     return vertices;
   }
-  // group vertices in segments when they are sorted like binary numbers (1,1,1), (1,1,-1) (1,-1,1) (1,-1,-1)...
+
+  /**
+   * Generates the sides (edges) of the hypercube by pairing vertices.
+   * The pairing is done sequentially by comparing binary representations of vertex positions.
+   *
+   * @static
+   * @private
+   * @param {number} dimensions - The number of dimensions for the hypercube.
+   * @param {Array<PointND>} vertices - The vertices of the hypercube.
+   * @returns {Array<SegmentND>} An array of SegmentND instances representing the edges of the hypercube.
+   */
   static #createHypercubeSides(dimensions, vertices) {
     let sides = [];
     let verticesUsed = [];
@@ -410,12 +648,36 @@ class Hypercube extends MeshND {
     return sides;
   }
 }
+
+/**
+ * Represents an n-dimensional simplex, extending the MeshND class.
+ * Automatically generates vertices and sides for the simplex based on the given dimensions and side length.
+ *
+ * @class Simplex
+ * @extends MeshND
+ * @constructor
+ * @param {number} dimensions - The number of dimensions for the simplex.
+ * @param {number} [side=DEFAULT_SIZE] - The length of each side of the simplex (default is DEFAULT_SIZE).
+ */
 class Simplex extends MeshND {
   constructor(dimensions, side = DEFAULT_SIZE) {
     const vertices = Simplex.#createSimplex(dimensions, side);
     const sides = Simplex.#createSimplexSides(dimensions, vertices);
     super(vertices, sides);
   }
+
+  /**
+   * Recursively generates the vertices for the simplex by adding a new vertex to an (n-1)-dimensional simplex.
+   * Ensures that the simplex is centered and all vertices have the correct dimensionality.
+   *
+   * @static
+   * @private
+   * @param {number} dimensions - The number of dimensions for the simplex.
+   * @param {number} side - The length of each side of the simplex.
+   * @param {Array<number>} [pointstamp=[]] - Optional array to mark the simplex (not currently used).
+   * @returns {Array<PointND>} An array of PointND instances representing the vertices of the simplex.
+   * @throws {Error} If a vertex has too many or too few coordinates.
+   */
   static #createSimplex(dimensions, side, pointstamp = []) {
     if (dimensions === 1) {
       return new Hypercube(1, side).vertices;
@@ -446,6 +708,17 @@ class Simplex extends MeshND {
       return simplex.vertices;
     }
   }
+
+  /**
+   * Generates the sides (edges) of the simplex by connecting all possible pairs of vertices,
+   * excluding any duplicate connections.
+   *
+   * @static
+   * @private
+   * @param {number} dimensions - The number of dimensions for the simplex.
+   * @param {Array<PointND>} vertices - The vertices of the simplex.
+   * @returns {Array<SegmentND>} An array of SegmentND instances representing the edges of the simplex.
+   */
   static #createSimplexSides(dimensions, vertices) {
     let sides = [];
     let verticesUsed = [];
@@ -460,13 +733,37 @@ class Simplex extends MeshND {
     return sides;
   }
 }
+
+/**
+ * Represents an n-dimensional hypersphere, extending the MeshND class.
+ * Automatically generates vertices and sides for the hypersphere based on its dimensions, radius, and complexity.
+ *
+ * @class Hypersphere
+ * @extends MeshND
+ * @constructor
+ * @param {number} dimensions - The number of dimensions for the hypersphere.
+ * @param {number} [radius=DEFAULT_SIZE] - The radius of the hypersphere (default is DEFAULT_SIZE).
+ * @param {number} [complexity=DEFAULT_COMPLEXITY] - The complexity (number of subdivisions) for generating the hypersphere.
+ */
 class Hypersphere extends MeshND {
   constructor(dimensions, radius = DEFAULT_SIZE, complexity = DEFAULT_COMPLEXITY) {
     const hypersphere = Hypersphere.#createHypersphere(dimensions, radius, complexity);
     // const sides = Hypersphere.#createHypersphereSides(vertices, complexity);
     super(hypersphere.vertices, hypersphere.sides);
   }
-  // Funzione ricorsiva per la creazione di ipersfere
+
+  /**
+   * Recursively generates the vertices and sides for the hypersphere by building lower-dimensional sections.
+   * Uses trigonometric calculations to place vertices in n-dimensional space.
+   *
+   * @static
+   * @private
+   * @param {number} dimensions - The number of dimensions for the hypersphere.
+   * @param {number} radius - The radius of the hypersphere.
+   * @param {number} complexity - The complexity (number of subdivisions) for the hypersphere.
+   * @param {Array<number>} [pointstamp=[]] - Optional additional coordinates for higher-dimensional sections.
+   * @returns {Object} An object containing `vertices` (Array<PointND>) and `sides` (Array<SegmentND>).
+   */
   static #createHypersphere(dimensions, radius, complexity, pointstamp = []) {
     let stepAngle = Math.PI / complexity;
     if (dimensions === 1) {
@@ -492,19 +789,50 @@ class Hypersphere extends MeshND {
       return { vertices: vertices, sides: sides };
     }
   }
+
+  /**
+   * Connects two adjacent sections of a hypersphere by creating edges (segments) between corresponding vertices.
+   *
+   * @static
+   * @param {Object} previousHypersphereSection - The previous hypersphere section containing vertices.
+   * @param {Object} hypersphereSection - The current hypersphere section containing vertices.
+   * @returns {Array<SegmentND>} An array of SegmentND instances connecting the two sections.
+   */
   static connectTwoAdiacentHypersphereSections(previousHypersphereSection, hypersphereSection) {
     if (previousHypersphereSection === undefined) return [];
     let sides = [];
     for (let v = 0; v < hypersphereSection.vertices.length; v++) sides.push(new SegmentND(previousHypersphereSection.vertices[v], hypersphereSection.vertices[v]));
     return sides;
   }
-  // Function to create a 2D circle of points, given radius and a stepangle.
+
+  /**
+   * Creates a 2D circle of points, given a radius and step angle.
+   * Also generates the sides (edges) connecting adjacent points in the circle.
+   *
+   * @static
+   * @private
+   * @param {number} radius - The radius of the circle.
+   * @param {number} stepAngle - The angle step for placing points around the circle.
+   * @param {Array<number>} [pointstamp=[]] - Optional additional coordinates for higher-dimensional space.
+   * @returns {Object} An object containing `vertices` (Array<PointND>) and `sides` (Array<SegmentND>).
+   */
   static #createCircle(radius, stepAngle, pointstamp = []) {
     const vertices = Hypersphere.#createCircleVertices(radius, stepAngle, pointstamp);
     const sides = Hypersphere.#createCircleSides(vertices);
     const circle = { vertices: vertices, sides: sides };
     return circle;
   }
+
+  /**
+   * Generates the vertices for a 2D circle based on the radius and step angle.
+   *
+   * @static
+   * @private
+   * @param {number} radius - The radius of the circle.
+   * @param {number} stepAngle - The angle step for placing points around the circle.
+   * @param {Array<number>} [pointstamp=[]] - Optional additional coordinates for higher-dimensional space.
+   * @returns {Array<PointND>} An array of PointND instances representing the circle's vertices.
+   */
   static #createCircleVertices(radius, stepAngle, pointstamp = []) {
     let points = [];
     for (let theta = 0; theta < 2 * Math.PI; theta += stepAngle) {
@@ -515,6 +843,15 @@ class Hypersphere extends MeshND {
     }
     return points;
   }
+
+  /**
+   * Creates sides (edges) for a 2D circle by connecting adjacent vertices.
+   *
+   * @static
+   * @private
+   * @param {Array<PointND>} vertices - The vertices of the circle.
+   * @returns {Array<SegmentND>} An array of SegmentND instances connecting adjacent vertices.
+   */
   static #createCircleSides(vertices) {
     let sides = [];
     for (let v = 0; v < vertices.length; v++) {
@@ -524,19 +861,60 @@ class Hypersphere extends MeshND {
     return sides;
   }
 }
+
+/**
+ * Represents an orthoplex (a multi-dimensional counterpart of an octahedron)
+ * as a subclass of MeshND.
+ *
+ * The orthoplex is constructed by treating it as a hypersphere with a complexity of 2.
+ * The vertices and sides of the orthoplex are derived from the hypersphere's properties.
+ *
+ * @class Orthoplex
+ * @extends MeshND
+ * @param {number} dimensions - The number of dimensions of the orthoplex.
+ * @param {number} [side=DEFAULT_SIZE] - The side length of the orthoplex. Defaults to DEFAULT_SIZE.
+ */
 class Orthoplex extends MeshND {
   constructor(dimensions, side = DEFAULT_SIZE) {
-    // thinking an orthoplex as a hypersphere of complexity 2
     const radius = side * Math.SQRT1_2;
     const orthoplex = new Hypersphere(dimensions, radius, 2);
     super(orthoplex.vertices, orthoplex.sides);
   }
 }
+
+/**
+ * Represents a torus in n-dimensional space as a subclass of MeshND.
+ *
+ * The torus is constructed by generating vertices and sides based on a hypersphere slice
+ * and applying rotations to form the shape of the torus.
+ *
+ * @class Torus
+ * @extends MeshND
+ * @param {number} dimensions - The number of dimensions of the torus.
+ * @param {number} [radius=DEFAULT_SIZE / 4] - The radius of the torus slice. Defaults to a quarter of DEFAULT_SIZE.
+ * @param {number} [distanceFromTheCenter=2 * radius] - The distance of the torus slice from the center. Defaults to twice the radius.
+ * @param {number} [complexity=DEFAULT_COMPLEXITY] - The complexity level defining the resolution of the torus. Defaults to DEFAULT_COMPLEXITY.
+ */
 class Torus extends MeshND {
   constructor(dimensions, radius = DEFAULT_SIZE / 4, distanceFromTheCenter = 2 * radius, complexity = DEFAULT_COMPLEXITY) {
     const torus = Torus.#createTorusVertices(dimensions, radius, distanceFromTheCenter, complexity);
     super(torus.vertices, torus.sides);
   }
+
+  /**
+   * Generates the vertices and sides required to construct a torus.
+   *
+   * This static method calculates the vertices and sides of the torus by transforming a hypersphere slice
+   * and applying rotations to create the torus structure.
+   *
+   * @static
+   * @method #createTorusVertices
+   * @param {number} dimensions - The number of dimensions of the torus.
+   * @param {number} radius - The radius of the torus slice.
+   * @param {number} distanceFromTheCenter - The distance of the torus slice from the center.
+   * @param {number} complexity - The complexity level defining the resolution of the torus.
+   * @returns {object} - An object containing the vertices and sides of the torus.
+   */
   static #createTorusVertices(dimensions, radius, distanceFromTheCenter, complexity) {
     let vertices = [];
     let sides = [];
@@ -567,6 +945,19 @@ class Torus extends MeshND {
     sides.push(...Torus.#connectTwoAdiacentTorusSections(slice, vertices));
     return { vertices: vertices, sides: sides };
   }
+
+  /**
+   * Connects adjacent sections of the torus.
+   *
+   * This static method ensures continuity in the torus structure by connecting vertices from
+   * adjacent sections.
+   *
+   * @static
+   * @method #connectTwoAdiacentTorusSections
+   * @param {Hypersphere} sliceSample - A sample slice of the torus.
+   * @param {Array} torusVertices - The vertices of the torus.
+   * @returns {Array} - An array of sides connecting adjacent sections.
+   */
   static #connectTwoAdiacentTorusSections(sliceSample, torusVertices) {
     let sides = [];
     for (let v = sliceSample.vertices.length; v < torusVertices.length; v += 1) {
@@ -576,6 +967,14 @@ class Torus extends MeshND {
     return sides;
   }
 }
+
+/**
+ * Reverses the direction of a given vector by negating each of its components.
+ *
+ * @function oppositeVector
+ * @param {Array<number>} vector - An array representing the vector to be inverted.
+ * @returns {Array<number>} - The input vector with all components negated.
+ */
 function oppositeVector(vector) {
   for (let i = 0; i < vector.length; i++) vector[i] *= -1;
   return vector;
@@ -608,6 +1007,7 @@ function oppositeVector(vector) {
 function uploadEnvironment() {
   context.clearRect(0, 0, window.innerWidth, window.innerHeight);
 }
+
 function resizeCanvas() {
   screenDimensions.width = window.innerWidth;
   context = canvas.getContext("2d");
