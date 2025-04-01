@@ -12,7 +12,8 @@ const app = {
   angle: 0,
   isRendering: false,
   guiHandlers: {},
-};
+  animationId: {},
+  };
 
 // CONFIGURAZIONE DEL CANVAS
 window.addEventListener("resize", () => {
@@ -54,7 +55,7 @@ app.guiHandlers.meshes.button.addEventListener("click", () => {
   // Imposta display: none appena finisce la transizione per evitare bug
   app.guiHandlers.meshes.dropmenu.addEventListener("transitionend", () => {
     if (!isDropmenuOpen(app.guiHandlers.meshes.dropmenu)) {
-      app.guiHandlers.meshes.dropmenu.style.display = "none";
+      dropmenu.classList.remove.contains("open");
     }
   });
 });
@@ -79,6 +80,7 @@ app.guiHandlers.meshes.meshButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const input = button.innerHTML;
     if (input !== "And so on...") {
+      cancelAnimationFrame(app.animationId);
       tic(input);
     } else {
       alert("Wait for new meshes!");
@@ -211,5 +213,11 @@ function renderEnvironment(input) {
   r.destroy();
   // Disegno la mesh
   mesh.render(rotationScope, app.guiHandlers.projection.isOrthogonalProjection);
-  requestAnimationFrame(() => tic(input));
+  app.animationId = requestAnimationFrame(() => tic(input));
 }
+
+// STOP FRAME ANIMETION AFTER 10S (only debugging)
+// setTimeout(() => {
+//   cancelAnimationFrame(app.animationId);
+//   console.log("Loop interrotto");
+// }, 10000);
