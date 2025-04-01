@@ -13,7 +13,20 @@ const app = {
   isRendering: false,
   guiHandlers: {},
   animationId: {},
-  };
+};
+
+async function fetchWikiData() {
+  try {
+    const response = await fetch("./wiki.json");
+    const wiki = await response.json();
+    return wiki;
+  } catch (error) {
+    throw new Error("Errore durante il fetch della wiki:", error);
+  }
+}
+
+const WIKI = await fetchWikiData();
+console.log(WIKI);
 
 // CONFIGURAZIONE DEL CANVAS
 window.addEventListener("resize", () => {
@@ -87,6 +100,23 @@ app.guiHandlers.meshes.meshButtons.forEach((button) => {
     }
   });
 });
+
+function selectMesh(input, dimensions) {
+  switch (input) {
+    case "Hypercube":
+      return new GEOLIB.Hypercube(dimensions);
+    case "Simplex":
+      return new GEOLIB.Simplex(dimensions);
+    case "Hypersphere":
+      return new GEOLIB.Hypersphere(dimensions);
+    case "Torus":
+      return new GEOLIB.Torus(dimensions);
+    case "Orthoplex":
+      return new GEOLIB.Orthoplex(dimensions);
+    default:
+      throw new Error("Invalid input entered: " + '"' + input + '"');
+  }
+}
 
 // GESTIONE DEL BOTTONE PER CAMBIARE IL NUMERO DI DIMENSIONI
 app.guiHandlers.dimensions = {
@@ -177,6 +207,15 @@ app.guiHandlers.rotation.planeButtons.forEach((button) => {
 });
 console.log(app);
 
+function humanizeMeshName(technicalName) {
+  let target = WIKI.find((mesh) => mesh["technicalName"] === technicalName);
+  if (target === undefined) {
+    console.warn("Target not found in wiki:\t", technicalName, "\nIt's recommended to update the wiki.");
+    return technicalName;
+  }
+  return target["commonName"];
+}
+
 function tic(input) {
   app.isRendering = true;
   app.finalTime = Date.now();
@@ -186,7 +225,7 @@ function tic(input) {
 }
 
 function renderEnvironment(input) {
-  const mesh = new (meshesMap.get(input))(app.dimensionsToRender);
+  const mesh = selectMesh(input, app.dimensionsToRender);
   const rotationScope = GEOLIB.rotationScope(app.guiHandlers.rotation.planes);
   if (mesh.nthDimension() < rotationScope) mesh.extendIn(rotationScope);
   GEOLIB.uploadEnvironment();
@@ -202,7 +241,8 @@ function renderEnvironment(input) {
 
   // Aggiorno il titolo
   const h1 = document.querySelector("h1");
-  h1.innerHTML = `A ${app.dimensionsToRender}-${input} rotating in ${rotationScope}D`;
+  const humanizedInput = humanizeMeshName(`${app.dimensionsToRender}-${input}`);
+  h1.innerHTML = `A ${humanizedInput} rotating in ${rotationScope}D`;
   // Applico la rotazione
   for (let i = 0; i < app.guiHandlers.rotation.planes.length; i++) {
     r.set("r", [app.guiHandlers.rotation.planes[i], angles[i]]);
