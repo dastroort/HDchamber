@@ -19,6 +19,12 @@ h1 {
   color: #ccc7d1;
   font-family: Verdana;
 }
+.hidden {
+  opacity: 0;
+}
+legend {
+  transition: 0.2s;
+}
 
 .buttons {
   list-style: none;

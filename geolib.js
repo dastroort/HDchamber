@@ -66,6 +66,22 @@ function rotationScope(planes) {
  * @param {number} cols - Number of columns in the matrix.
  * @throws {Error} If attempting to instantiate directly while an instance already exists.
  */
+
+function enableColorLegend() {
+  const colorLegend = document.querySelector("legend");
+  if (colorLegend.classList.contains("hidden")) colorLegend.classList.remove("hidden");
+}
+
+function disableColorLegend() {
+  const colorLegend = document.querySelector("legend");
+  if (!colorLegend.classList.contains("hidden")) colorLegend.classList.add("hidden");
+}
+
+function setLegendCoordinate(dimensions) {
+  const coordinateToMap = axisIdentifiers[dimensions - 1].toUpperCase();
+  const colorLegendLabel = document.querySelector("legend label");
+  colorLegendLabel.innerHTML = coordinateToMap + " Coordinate";
+}
 class SingletonMatrix {
   static #instance = null;
 
@@ -466,6 +482,8 @@ class MeshND {
       let depthSample = 1;
       if (rotationScope >= COLOR_MAPPING_DIMENSION || this.nthDimension() >= COLOR_MAPPING_DIMENSION) {
         colorSample = MeshND.#pickColorSample(vertex);
+        enableColorLegend();
+        setLegendCoordinate(Math.max(rotationScope, this.nthDimension()));
       }
       if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.#pickDepthSample(vertex);
       projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()));
@@ -1014,4 +1032,4 @@ function resizeCanvas() {
   context.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
 }
 
-export { axisIdentifiers, rotationScope, SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas };
+export { axisIdentifiers, rotationScope, disableColorLegend, SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas };

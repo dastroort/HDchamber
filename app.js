@@ -103,6 +103,7 @@ app.guiHandlers.meshes.meshButtons.forEach((button) => {
     if (app.meshToRender !== "And so on...") {
       cancelAnimationFrame(app.animationId);
       uploadWikipage();
+      GEOLIB.disableColorLegend();
       tic(app.meshToRender);
     } else {
       alert("Wait for new meshes!");
@@ -139,7 +140,7 @@ function isValidNumberOfDimensions(dimensionsEntered) {
 
 app.guiHandlers.dimensions.button.addEventListener("click", () => {
   app.guiHandlers.dimensions.input = prompt(`Enter the number of dimensions of the shape you want to see (${app.MIN_DIMENSIONS}-${app.MAX_DIMENSIONS}):`) * 1;
-
+  GEOLIB.disableColorLegend();
   if (!isValidNumberOfDimensions(app.guiHandlers.dimensions.input)) {
     alert(`Invalid number of dimensions: ${app.guiHandlers.dimensions.input}`);
   } else {
@@ -164,6 +165,7 @@ app.guiHandlers.rotation = {
 app.guiHandlers.rotation.button = document.querySelector(".rotation-handler");
 app.guiHandlers.rotation.dropmenu = document.querySelector(".rotation-handler + .dropmenu");
 app.guiHandlers.rotation.button.addEventListener("click", () => {
+  GEOLIB.disableColorLegend();
   setDropmenuBehavior(app.guiHandlers.rotation.dropmenu);
 });
 
