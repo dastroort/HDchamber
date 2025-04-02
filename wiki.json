@@ -59,7 +59,9 @@
   },
   {
     "technicalName": "6-Hypercube",
-    "commonName": "6-Cube"
+    "commonName": "6-Cube",
+    "description": "In geometry, a 6-cube is a six-dimensional hypercube with 64 vertices, 192 edges, 240 square faces, 160 cubic cells, 60 tesseract 4-faces, and 12 5-cube 5-faces.",
+    "dimensions": 6
   },
   {
     "technicalName": "2-Hypersphere",
@@ -93,11 +95,15 @@
   },
   {
     "technicalName": "5-Hypersphere",
-    "commonName": "4-Sphere"
+    "commonName": "4-Sphere",
+    "description": "Not yet.",
+    "dimensions": 5
   },
   {
     "technicalName": "6-Hypersphere",
-    "commonName": "5-Sphere"
+    "commonName": "5-Sphere",
+    "description": "Not yet.",
+    "dimensions": 6
   },
   {
     "technicalName": "2-Simplex",
@@ -143,19 +149,27 @@
   },
   {
     "technicalName": "5-Simplex",
-    "commonName": "5-Simplex"
+    "commonName": "5-Simplex",
+    "description": "Not yet.",
+    "dimensions": 5
   },
   {
     "technicalName": "6-Simplex",
-    "commonName": "6-Simplex"
+    "commonName": "6-Simplex",
+    "description": "Not yet.",
+    "dimensions": 6
   },
   {
     "technicalName": "2-Torus",
-    "commonName": "Annulus"
+    "commonName": "Annulus",
+    "description": "An annulus is a ring-shaped geometric figure. It consists of the region bounded between two concentric circles, essentially creating a \"donut-like\" shape. The inner circle defines the hollow center, while the outer circle forms the external boundary.",
+    "dimensions": 2
   },
   {
     "technicalName": "3-Torus",
-    "commonName": "Torus"
+    "commonName": "Torus",
+    "description": "A torus is a three-dimensional geometric shape resembling a donut or inner tube. It is defined as the surface formed by revolving a circle around an axis outside of itself. Mathematically, it's described by two radii: the radius of the circular cross-section and the distance from the center of the torus to the axis of rotation. Its unique topology makes it fascinating for mathematics, physics, and even design!",
+    "dimensions": 3
   },
   {
     "technicalName": "4-Torus",
@@ -169,19 +183,34 @@
   },
   {
     "technicalName": "5-Torus",
-    "commonName": "5-Torus"
+    "commonName": "5-Torus",
+    "description": "Not yet.",
+    "dimensions": 5
   },
   {
     "technicalName": "6-Torus",
-    "commonName": "6-Torus"
+    "commonName": "6-Torus",
+    "description": "Not yet.",
+    "dimensions": 6
   },
   {
     "technicalName": "2-Orthoplex",
-    "commonName": "Square"
+    "commonName": "Square",
+    "description": "The Square is a fundamental two-dimensional shape and part of the hypercube family. Composed of four equal sides and four right angles, it has 4 vertices and 4 edges, embodying simplicity and symmetry. As one of the most recognizable geometric shapes, the square has applications in mathematics, design, and architecture, symbolizing balance and structure. Its presence in two-dimensional space highlights the elegance of basic geometric forms and inspires further exploration of higher-dimensional analogs.",
+    "dimensions": 2,
+    "edges": 4,
+    "vertices": 4,
+    "properties": {
+      "eulerCharacteristic": 1,
+      "dual": "Self-dual",
+      "relatedShapes": ["Cube", "Tesseract"]
+    }
   },
   {
     "technicalName": "3-Orthoplex",
-    "commonName": "Octahedron"
+    "commonName": "Octahedron",
+    "description": "A regular octahedron is a three-dimensional polyhedron composed of eight equilateral triangular faces, twelve edges, and six vertices. It is one of the five Platonic solids and has a high degree of symmetry. You can think of it as resembling two square pyramids joined base-to-base. The angles and faces are perfectly balanced, making it a fascinating shape in geometry!",
+    "dimensions": 3
   },
   {
     "technicalName": "4-Orthoplex",
@@ -198,10 +227,14 @@
   },
   {
     "technicalName": "5-Orthoplex",
-    "commonName": "5-Orthoplex"
+    "commonName": "5-Orthoplex",
+    "description": "Not yet.",
+    "dimensions": 5
   },
   {
     "technicalName": "6-Orthoplex",
-    "commonName": "6-Orthoplex"
+    "commonName": "6-Orthoplex",
+    "description": "Not yet.",
+    "dimensions": 6
   }
 ]
