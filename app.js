@@ -64,14 +64,21 @@ function isDropmenuOpen(dropmenu) {
   return dropmenu.classList.contains("open");
 }
 
-app.guiHandlers.meshes.button.addEventListener("click", () => {
-  app.guiHandlers.meshes.dropmenu.classList.toggle("open");
+function setDropmenuBehavior(dropmenu) {
+  dropmenu.style.display = "flex";
+  setTimeout(() => {
+    dropmenu.classList.toggle("open");
+  }, 10);
   // Imposta display: none appena finisce la transizione per evitare bug
-  app.guiHandlers.meshes.dropmenu.addEventListener("transitionend", () => {
-    if (!isDropmenuOpen(app.guiHandlers.meshes.dropmenu)) {
-      dropmenu.classList.remove.contains("open");
+  dropmenu.addEventListener("transitionend", () => {
+    if (!isDropmenuOpen(dropmenu)) {
+      dropmenu.style.display = "none";
     }
   });
+}
+
+app.guiHandlers.meshes.button.addEventListener("click", () => {
+  setDropmenuBehavior(app.guiHandlers.meshes.dropmenu);
 });
 
 const meshesMap = new Map();
@@ -157,7 +164,7 @@ app.guiHandlers.rotation = {
 app.guiHandlers.rotation.button = document.querySelector(".rotation-handler");
 app.guiHandlers.rotation.dropmenu = document.querySelector(".rotation-handler + .dropmenu");
 app.guiHandlers.rotation.button.addEventListener("click", () => {
-  app.guiHandlers.rotation.dropmenu.classList.toggle("open");
+  setDropmenuBehavior(app.guiHandlers.rotation.dropmenu);
 });
 
 const planesMap = new Map();
