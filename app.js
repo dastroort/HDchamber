@@ -13,6 +13,7 @@ const app = {
   isRendering: false,
   guiHandlers: {},
   animationId: {},
+  meshToRender: null,
 };
 
 async function fetchWikiData() {
@@ -91,10 +92,11 @@ meshesMap.keys().forEach((key) => {
 app.guiHandlers.meshes.meshButtons = document.querySelectorAll(".button.mesh");
 app.guiHandlers.meshes.meshButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    const input = button.innerHTML;
-    if (input !== "And so on...") {
+    app.meshToRender = button.innerHTML;
+    if (app.meshToRender !== "And so on...") {
       cancelAnimationFrame(app.animationId);
-      tic(input);
+      uploadWikipage();
+      tic(app.meshToRender);
     } else {
       alert("Wait for new meshes!");
     }
@@ -205,15 +207,74 @@ app.guiHandlers.rotation.planeButtons.forEach((button) => {
     }
   });
 });
+
+// wiki
+app.guiHandlers.wiki = {
+  button: document.querySelector(".button.wiki"),
+  wikipage: document.querySelector(".wikipage"),
+  input: null,
+  meshData: null,
+};
+function uploadWikipage() {
+  try {
+    app.guiHandlers.wiki.wikipage.replaceChildren();
+    writeMeshWikiPage(app.dimensionsToRender + "-" + app.meshToRender, app.guiHandlers.wiki.wikipage);
+  } catch {
+    writeDefaultWikiPage(app.guiHandlers.wiki.wikipage);
+  }
+}
+
+app.guiHandlers.wiki.button.addEventListener("click", () => {
+  app.guiHandlers.wiki.wikipage.classList.toggle("open");
+  app.guiHandlers.wiki.button.classList.toggle("open");
+  uploadWikipage();
+});
+
+function loadMeshWikiData(technicalName) {
+  const target = WIKI.find((mesh) => mesh["technicalName"] === technicalName);
+  if (target === undefined) throw new Error(`Cannot find the technical name "${technicalName}" in the wiki.`);
+  return target;
+}
+console.log("Debug della funzione umanizzazione: ", humanizeMeshName("7-Hypercube"));
 console.log(app);
 
 function humanizeMeshName(technicalName) {
-  let target = WIKI.find((mesh) => mesh["technicalName"] === technicalName);
-  if (target === undefined) {
-    console.warn("Target not found in wiki:\t", technicalName, "\nIt's recommended to update the wiki.");
+  try {
+    const target = loadMeshWikiData(technicalName);
+    return target["commonName"];
+  } catch (error) {
+    console.warn("An error is found, it will be returned the original name.", error);
     return technicalName;
   }
-  return target["commonName"];
+}
+
+function writeMeshWikiPage(technicalName, container) {
+  const target = loadMeshWikiData(technicalName);
+  const title = document.createElement("h3");
+  const dimensions = document.createElement("p");
+  const description = document.createElement("p");
+
+  title.innerHTML = target["commonName"];
+  dimensions.innerHTML = "Dimensions: " + target["dimensions"];
+  description.innerHTML = target["description"];
+
+  const elements = [title, dimensions, description];
+  elements.forEach((element) => {
+    container.appendChild(element);
+  });
+}
+
+function writeDefaultWikiPage(container) {
+  const title = document.createElement("h3");
+  const p = document.createElement("p");
+
+  title.innerHTML = "Welcome to the Wiki!";
+  p.innerHTML = "Select a mesh to see its documentation!";
+
+  const elements = [title, p];
+  elements.forEach((element) => {
+    container.appendChild(element);
+  });
 }
 
 function tic(input) {

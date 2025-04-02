@@ -120,18 +120,51 @@ legend * {
   height: 10px;
   max-width: 300px;
   border-radius: 3px;
-  background: linear-gradient(
-    to right,
-    hsl(200, 100%, 50%),
-    hsl(250, 100%, 50%),
-    hsl(300, 100%, 50%),
-    hsl(0, 100%, 50%)
-  );
+  background: linear-gradient(to right, hsl(200, 100%, 50%), hsl(250, 100%, 50%), hsl(300, 100%, 50%), hsl(0, 100%, 50%));
   opacity: 0.7;
+}
+.wikipage {
+  height: 100vh;
+  width: 400px;
+  position: absolute;
+  top: 0px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-top-color: transparent;
+  left: 100%;
+  backdrop-filter: blur(5px);
+  transition: 0.8s;
+  z-index: 2;
+  padding: 30px;
+}
+.wikipage h3 {
+  font-size: 24px;
+}
+.wikipage p {
+  font-size: 14px;
+  line-height: 1.2rem;
+}
+.wikipage.open {
+  left: calc(100% - 550px + 95px);
+}
+.button.wiki {
+  transition: 0.8s;
+}
+.button.wiki.open {
+  position: relative;
+  transform: translateX(-450px);
 }
 
 @media screen and (max-width: 800px) {
   h1 {
     font-size: 24px;
+  }
+  .wikipage {
+    width: 450px;
+  }
+  .wikipage.open {
+    left: calc(100% - 450px + 95px);
+  }
+  .button.wiki.open {
+    transform: translateX(-350px);
   }
 }
