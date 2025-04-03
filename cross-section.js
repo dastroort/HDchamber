@@ -61,12 +61,12 @@ class Hyperplane {
 
   crossSectionOfMesh(mesh) {
     let crossSectionVertices = [];
-    mesh.sides.forEach((side) => {
-      let vertex = this.intersectWithSegment(side);
+    mesh.edges.forEach((edge) => {
+      let vertex = this.intersectWithSegment(edge);
       if (vertex !== null) crossSectionVertices.push(vertex);
     });
 
-    let crossSectionSides = [];
+    let crossSectionEdges = [];
     let vertexConnections = new Map();
 
     crossSectionVertices.forEach((A, indexA) => {
@@ -88,7 +88,7 @@ class Hyperplane {
           const extremes = [A, closestPoint].sort((a, b) => a.id - b.id);
 
           const segment = new GEOLIB.SegmentND(...extremes);
-          crossSectionSides.push(segment);
+          crossSectionEdges.push(segment);
 
           vertexConnections.set(A, AConnections + 1);
           vertexConnections.set(closestPoint, BConnections + 1);
@@ -96,7 +96,7 @@ class Hyperplane {
       });
     });
 
-    return new GEOLIB.MeshND(crossSectionVertices, crossSectionSides);
+    return new GEOLIB.MeshND(crossSectionVertices, crossSectionEdges);
   }
 }
 

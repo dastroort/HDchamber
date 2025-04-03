@@ -413,17 +413,17 @@ class PointND {
 }
 
 /**
- * Represents an n-dimensional mesh consisting of vertices and sides, enabling operations such as transformation, rendering, and barycenter calculation.
+ * Represents an n-dimensional mesh consisting of vertices and edges, enabling operations such as transformation, rendering, and barycenter calculation.
  *
  * @class MeshND
  * @constructor
  * @param {PointND[]} vertices - Array of n-dimensional points representing the vertices of the mesh.
- * @param {SegmentND[]} [sides=[]] - Optional array of sub-mesh sides connected to the vertices.
+ * @param {SegmentND[]} [edges=[]] - Optional array of sub-mesh edges connected to the vertices.
  */
 class MeshND {
-  constructor(vertices, sides = []) {
+  constructor(vertices, edges = []) {
     this.vertices = vertices;
-    this.sides = sides;
+    this.edges = edges;
     this.nthDimension = () => this.vertices[0].nthDimension();
   }
 
@@ -468,7 +468,7 @@ class MeshND {
   }
 
   /**
-   * Renders the mesh by projecting its vertices and sides into the specified dimensional context.
+   * Renders the mesh by projecting its vertices and edges into the specified dimensional context.
    *
    * @param {number} rotationScope - Specifies the scope for rotation mapping.
    * @param {boolean} [isOrthogonalProjection=false] - Whether the projection is orthogonal.
@@ -488,8 +488,8 @@ class MeshND {
       if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.#pickDepthSample(vertex);
       projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()));
     });
-    this.sides.forEach((side) => {
-      side.render(isOrthogonalProjection, renderingScale, Math.max(rotationScope, side.start.nthDimension()));
+    this.edges.forEach((edge) => {
+      edge.render(isOrthogonalProjection, renderingScale, Math.max(rotationScope, edge.start.nthDimension()));
     });
   }
 
@@ -508,7 +508,7 @@ class MeshND {
   }
 
   /**
-   * Transforms the mesh using the specified matrix, applying the transformation to all vertices and sides.
+   * Transforms the mesh using the specified matrix, applying the transformation to all vertices and edges.
    *
    * @param {Array<Array<number>>} matrix - The transformation matrix.
    * @returns {MeshND} A new mesh transformed by the matrix.
@@ -516,8 +516,8 @@ class MeshND {
   transform(matrix) {
     this.extendIn(matrix.length);
     this.vertices = this.vertices.map((vertex) => vertex.transform(matrix));
-    this.sides = this.sides.map((side) => side.transform(matrix));
-    return new MeshND(this.vertices, this.sides);
+    this.edges = this.edges.map((edge) => edge.transform(matrix));
+    return new MeshND(this.vertices, this.edges);
   }
 }
 
@@ -607,43 +607,43 @@ class SegmentND {
 
 /**
  * Represents an n-dimensional hypercube, extending the MeshND class.
- * Automatically generates vertices and sides based on the given dimensions and side length.
+ * Automatically generates vertices and edges based on the given dimensions and edge length.
  *
  * @class Hypercube
  * @extends MeshND
  * @constructor
  * @param {number} dimensions - The number of dimensions for the hypercube.
- * @param {number} [side=DEFAULT_SIZE] - The length of each side of the hypercube (default value is DEFAULT_SIZE).
+ * @param {number} [edge=DEFAULT_SIZE] - The length of each edge of the hypercube (default value is DEFAULT_SIZE).
  */
 class Hypercube extends MeshND {
-  constructor(dimensions, side = DEFAULT_SIZE) {
-    let vertices = Hypercube.#createHypercubeVertices(dimensions, side);
-    let sides = Hypercube.#createHypercubeSides(dimensions, vertices);
-    super(vertices, sides);
+  constructor(dimensions, edge = DEFAULT_SIZE) {
+    let vertices = Hypercube.#createHypercubeVertices(dimensions, edge);
+    let edges = Hypercube.#createHypercubeEdges(dimensions, vertices);
+    super(vertices, edges);
   }
 
   /**
-   * Generates the vertices of the hypercube based on the given dimensions and side length.
+   * Generates the vertices of the hypercube based on the given dimensions and edge length.
    * Each vertex is calculated using binary representation, toggling between positive and negative values.
    *
    * @static
    * @private
    * @param {number} dimensions - The number of dimensions for the hypercube.
-   * @param {number} side - The length of each side of the hypercube.
+   * @param {number} edge - The length of each edge of the hypercube.
    * @returns {Array<PointND>} An array of PointND instances representing the vertices of the hypercube.
    */
-  static #createHypercubeVertices(dimensions, side) {
+  static #createHypercubeVertices(dimensions, edge) {
     let vertices = [];
     for (let i = 0; i < Math.pow(2, dimensions); i++) {
       let vertex = [];
-      for (let j = 0; j < dimensions; j++) vertex.push(i & (1 << j) ? side / 2 : -side / 2);
+      for (let j = 0; j < dimensions; j++) vertex.push(i & (1 << j) ? edge / 2 : -edge / 2);
       vertices.push(new PointND(...vertex));
     }
     return vertices;
   }
 
   /**
-   * Generates the sides (edges) of the hypercube by pairing vertices.
+   * Generates the edges (edges) of the hypercube by pairing vertices.
    * The pairing is done sequentially by comparing binary representations of vertex positions.
    *
    * @static
@@ -652,36 +652,36 @@ class Hypercube extends MeshND {
    * @param {Array<PointND>} vertices - The vertices of the hypercube.
    * @returns {Array<SegmentND>} An array of SegmentND instances representing the edges of the hypercube.
    */
-  static #createHypercubeSides(dimensions, vertices) {
-    let sides = [];
+  static #createHypercubeEdges(dimensions, vertices) {
+    let edges = [];
     let verticesUsed = [];
     for (let i = 0; i < dimensions; i++) {
       verticesUsed = [];
       for (let j = 0; j < vertices.length; j++) {
         if (verticesUsed.includes(j)) continue;
-        sides.push(new SegmentND(vertices[j], vertices[j + Math.pow(2, i)]));
+        edges.push(new SegmentND(vertices[j], vertices[j + Math.pow(2, i)]));
         verticesUsed.push(j, j + Math.pow(2, i));
       }
     }
-    return sides;
+    return edges;
   }
 }
 
 /**
  * Represents an n-dimensional simplex, extending the MeshND class.
- * Automatically generates vertices and sides for the simplex based on the given dimensions and side length.
+ * Automatically generates vertices and edges for the simplex based on the given dimensions and edge length.
  *
  * @class Simplex
  * @extends MeshND
  * @constructor
  * @param {number} dimensions - The number of dimensions for the simplex.
- * @param {number} [side=DEFAULT_SIZE] - The length of each side of the simplex (default is DEFAULT_SIZE).
+ * @param {number} [edge=DEFAULT_SIZE] - The length of each edge of the simplex (default is DEFAULT_SIZE).
  */
 class Simplex extends MeshND {
-  constructor(dimensions, side = DEFAULT_SIZE) {
-    const vertices = Simplex.#createSimplex(dimensions, side);
-    const sides = Simplex.#createSimplexSides(dimensions, vertices);
-    super(vertices, sides);
+  constructor(dimensions, edge = DEFAULT_SIZE) {
+    const vertices = Simplex.#createSimplex(dimensions, edge);
+    const edges = Simplex.#createSimplexEdges(dimensions, vertices);
+    super(vertices, edges);
   }
 
   /**
@@ -691,18 +691,18 @@ class Simplex extends MeshND {
    * @static
    * @private
    * @param {number} dimensions - The number of dimensions for the simplex.
-   * @param {number} side - The length of each side of the simplex.
+   * @param {number} edge - The length of each edge of the simplex.
    * @param {Array<number>} [pointstamp=[]] - Optional array to mark the simplex (not currently used).
    * @returns {Array<PointND>} An array of PointND instances representing the vertices of the simplex.
    * @throws {Error} If a vertex has too many or too few coordinates.
    */
-  static #createSimplex(dimensions, side, pointstamp = []) {
+  static #createSimplex(dimensions, edge, pointstamp = []) {
     if (dimensions === 1) {
-      return new Hypercube(1, side).vertices;
+      return new Hypercube(1, edge).vertices;
     } else {
-      let oldSimplex = new Simplex(dimensions - 1, side, pointstamp);
+      let oldSimplex = new Simplex(dimensions - 1, edge, pointstamp);
       let oldBarycenter = oldSimplex.barycenter();
-      let newVertex = new PointND(...oldBarycenter.coordinates, Math.sqrt(side * side - oldBarycenter.distanceSquare(oldSimplex.vertices[0])));
+      let newVertex = new PointND(...oldBarycenter.coordinates, Math.sqrt(edge * edge - oldBarycenter.distanceSquare(oldSimplex.vertices[0])));
       let vertices = [...oldSimplex.vertices, newVertex];
       let simplex = new MeshND(vertices);
       for (let i = 0; i < vertices.length; i++) {
@@ -728,7 +728,7 @@ class Simplex extends MeshND {
   }
 
   /**
-   * Generates the sides (edges) of the simplex by connecting all possible pairs of vertices,
+   * Generates the edges (edges) of the simplex by connecting all possible pairs of vertices,
    * excluding any duplicate connections.
    *
    * @static
@@ -737,24 +737,24 @@ class Simplex extends MeshND {
    * @param {Array<PointND>} vertices - The vertices of the simplex.
    * @returns {Array<SegmentND>} An array of SegmentND instances representing the edges of the simplex.
    */
-  static #createSimplexSides(dimensions, vertices) {
-    let sides = [];
+  static #createSimplexEdges(dimensions, vertices) {
+    let edges = [];
     let verticesUsed = [];
     for (let i = 0; i < dimensions; i++) {
       for (let j = 0; j < vertices.length; j++) {
         if (i === j) continue;
         if (verticesUsed.includes(j)) continue;
-        sides.push(new SegmentND(vertices[i], vertices[j]));
+        edges.push(new SegmentND(vertices[i], vertices[j]));
         verticesUsed.push(i);
       }
     }
-    return sides;
+    return edges;
   }
 }
 
 /**
  * Represents an n-dimensional hypersphere, extending the MeshND class.
- * Automatically generates vertices and sides for the hypersphere based on its dimensions, radius, and complexity.
+ * Automatically generates vertices and edges for the hypersphere based on its dimensions, radius, and complexity.
  *
  * @class Hypersphere
  * @extends MeshND
@@ -766,12 +766,12 @@ class Simplex extends MeshND {
 class Hypersphere extends MeshND {
   constructor(dimensions, radius = DEFAULT_SIZE, complexity = DEFAULT_COMPLEXITY) {
     const hypersphere = Hypersphere.#createHypersphere(dimensions, radius, complexity);
-    // const sides = Hypersphere.#createHypersphereSides(vertices, complexity);
-    super(hypersphere.vertices, hypersphere.sides);
+    // const edges = Hypersphere.#createHypersphereEdges(vertices, complexity);
+    super(hypersphere.vertices, hypersphere.edges);
   }
 
   /**
-   * Recursively generates the vertices and sides for the hypersphere by building lower-dimensional sections.
+   * Recursively generates the vertices and edges for the hypersphere by building lower-dimensional sections.
    * Uses trigonometric calculations to place vertices in n-dimensional space.
    *
    * @static
@@ -780,12 +780,12 @@ class Hypersphere extends MeshND {
    * @param {number} radius - The radius of the hypersphere.
    * @param {number} complexity - The complexity (number of subdivisions) for the hypersphere.
    * @param {Array<number>} [pointstamp=[]] - Optional additional coordinates for higher-dimensional sections.
-   * @returns {Object} An object containing `vertices` (Array<PointND>) and `sides` (Array<SegmentND>).
+   * @returns {Object} An object containing `vertices` (Array<PointND>) and `edges` (Array<SegmentND>).
    */
   static #createHypersphere(dimensions, radius, complexity, pointstamp = []) {
     let stepAngle = Math.PI / complexity;
     if (dimensions === 1) {
-      return { vertices: new Hypercube(1, radius).vertices, sides: [] };
+      return { vertices: new Hypercube(1, radius).vertices, edges: [] };
     }
     if (dimensions === 2) {
       // Caso base: restituisci un array con un singolo punto
@@ -793,18 +793,18 @@ class Hypersphere extends MeshND {
     } else {
       // Caso ricorsivo: costruisci i punti utilizzando le sezioni di ipersfere di dimensioni inferiori
       let vertices = [];
-      let sides = [];
+      let edges = [];
       let previousHypersphereSection = undefined;
       for (let i = 0; i <= complexity; i++) {
         let w = radius * Math.cos(Math.PI - (i * Math.PI) / complexity);
         let hypersphereSectionRadius = Math.sqrt(radius * radius - w * w);
         let hypersphereSection = Hypersphere.#createHypersphere(dimensions - 1, hypersphereSectionRadius, complexity, pointstamp.concat(w));
         vertices.push(...hypersphereSection.vertices);
-        sides.push(...hypersphereSection.sides, ...Hypersphere.connectTwoAdiacentHypersphereSections(previousHypersphereSection, hypersphereSection));
+        edges.push(...hypersphereSection.edges, ...Hypersphere.connectTwoAdiacentHypersphereSections(previousHypersphereSection, hypersphereSection));
         previousHypersphereSection = hypersphereSection;
       }
       // connect adiacent sections
-      return { vertices: vertices, sides: sides };
+      return { vertices: vertices, edges: edges };
     }
   }
 
@@ -818,26 +818,26 @@ class Hypersphere extends MeshND {
    */
   static connectTwoAdiacentHypersphereSections(previousHypersphereSection, hypersphereSection) {
     if (previousHypersphereSection === undefined) return [];
-    let sides = [];
-    for (let v = 0; v < hypersphereSection.vertices.length; v++) sides.push(new SegmentND(previousHypersphereSection.vertices[v], hypersphereSection.vertices[v]));
-    return sides;
+    let edges = [];
+    for (let v = 0; v < hypersphereSection.vertices.length; v++) edges.push(new SegmentND(previousHypersphereSection.vertices[v], hypersphereSection.vertices[v]));
+    return edges;
   }
 
   /**
    * Creates a 2D circle of points, given a radius and step angle.
-   * Also generates the sides (edges) connecting adjacent points in the circle.
+   * Also generates the edges (edges) connecting adjacent points in the circle.
    *
    * @static
    * @private
    * @param {number} radius - The radius of the circle.
    * @param {number} stepAngle - The angle step for placing points around the circle.
    * @param {Array<number>} [pointstamp=[]] - Optional additional coordinates for higher-dimensional space.
-   * @returns {Object} An object containing `vertices` (Array<PointND>) and `sides` (Array<SegmentND>).
+   * @returns {Object} An object containing `vertices` (Array<PointND>) and `edges` (Array<SegmentND>).
    */
   static #createCircle(radius, stepAngle, pointstamp = []) {
     const vertices = Hypersphere.#createCircleVertices(radius, stepAngle, pointstamp);
-    const sides = Hypersphere.#createCircleSides(vertices);
-    const circle = { vertices: vertices, sides: sides };
+    const edges = Hypersphere.#createCircleEdges(vertices);
+    const circle = { vertices: vertices, edges: edges };
     return circle;
   }
 
@@ -863,20 +863,20 @@ class Hypersphere extends MeshND {
   }
 
   /**
-   * Creates sides (edges) for a 2D circle by connecting adjacent vertices.
+   * Creates edges (edges) for a 2D circle by connecting adjacent vertices.
    *
    * @static
    * @private
    * @param {Array<PointND>} vertices - The vertices of the circle.
    * @returns {Array<SegmentND>} An array of SegmentND instances connecting adjacent vertices.
    */
-  static #createCircleSides(vertices) {
-    let sides = [];
+  static #createCircleEdges(vertices) {
+    let edges = [];
     for (let v = 0; v < vertices.length; v++) {
-      if (v === vertices.length - 1) sides.push(new SegmentND(vertices[v], vertices[0]));
-      else sides.push(new SegmentND(vertices[v], vertices[v + 1]));
+      if (v === vertices.length - 1) edges.push(new SegmentND(vertices[v], vertices[0]));
+      else edges.push(new SegmentND(vertices[v], vertices[v + 1]));
     }
-    return sides;
+    return edges;
   }
 }
 
@@ -885,25 +885,25 @@ class Hypersphere extends MeshND {
  * as a subclass of MeshND.
  *
  * The orthoplex is constructed by treating it as a hypersphere with a complexity of 2.
- * The vertices and sides of the orthoplex are derived from the hypersphere's properties.
+ * The vertices and edges of the orthoplex are derived from the hypersphere's properties.
  *
  * @class Orthoplex
  * @extends MeshND
  * @param {number} dimensions - The number of dimensions of the orthoplex.
- * @param {number} [side=DEFAULT_SIZE] - The side length of the orthoplex. Defaults to DEFAULT_SIZE.
+ * @param {number} [edge=DEFAULT_SIZE] - The edge length of the orthoplex. Defaults to DEFAULT_SIZE.
  */
 class Orthoplex extends MeshND {
-  constructor(dimensions, side = DEFAULT_SIZE) {
-    const radius = side * Math.SQRT1_2;
+  constructor(dimensions, edge = DEFAULT_SIZE) {
+    const radius = edge * Math.SQRT1_2;
     const orthoplex = new Hypersphere(dimensions, radius, 2);
-    super(orthoplex.vertices, orthoplex.sides);
+    super(orthoplex.vertices, orthoplex.edges);
   }
 }
 
 /**
  * Represents a torus in n-dimensional space as a subclass of MeshND.
  *
- * The torus is constructed by generating vertices and sides based on a hypersphere slice
+ * The torus is constructed by generating vertices and edges based on a hypersphere slice
  * and applying rotations to form the shape of the torus.
  *
  * @class Torus
@@ -916,13 +916,13 @@ class Orthoplex extends MeshND {
 class Torus extends MeshND {
   constructor(dimensions, radius = DEFAULT_SIZE / 4, distanceFromTheCenter = 2 * radius, complexity = DEFAULT_COMPLEXITY) {
     const torus = Torus.#createTorusVertices(dimensions, radius, distanceFromTheCenter, complexity);
-    super(torus.vertices, torus.sides);
+    super(torus.vertices, torus.edges);
   }
 
   /**
-   * Generates the vertices and sides required to construct a torus.
+   * Generates the vertices and edges required to construct a torus.
    *
-   * This static method calculates the vertices and sides of the torus by transforming a hypersphere slice
+   * This static method calculates the vertices and edges of the torus by transforming a hypersphere slice
    * and applying rotations to create the torus structure.
    *
    * @static
@@ -931,11 +931,11 @@ class Torus extends MeshND {
    * @param {number} radius - The radius of the torus slice.
    * @param {number} distanceFromTheCenter - The distance of the torus slice from the center.
    * @param {number} complexity - The complexity level defining the resolution of the torus.
-   * @returns {object} - An object containing the vertices and sides of the torus.
+   * @returns {object} - An object containing the vertices and edges of the torus.
    */
   static #createTorusVertices(dimensions, radius, distanceFromTheCenter, complexity) {
     let vertices = [];
-    let sides = [];
+    let edges = [];
     let slice = new Hypersphere(dimensions - 1, radius, complexity / 2);
     slice.extendIn(dimensions);
     let zerosToAppend = Array(dimensions - 1).fill(0);
@@ -958,10 +958,10 @@ class Torus extends MeshND {
       slice.transform(R.value);
       R.destroy();
       vertices.push(...slice.vertices);
-      sides.push(...slice.sides);
+      edges.push(...slice.edges);
     }
-    sides.push(...Torus.#connectTwoAdiacentTorusSections(slice, vertices));
-    return { vertices: vertices, sides: sides };
+    edges.push(...Torus.#connectTwoAdiacentTorusSections(slice, vertices));
+    return { vertices: vertices, edges: edges };
   }
 
   /**
@@ -974,15 +974,15 @@ class Torus extends MeshND {
    * @method #connectTwoAdiacentTorusSections
    * @param {Hypersphere} sliceSample - A sample slice of the torus.
    * @param {Array} torusVertices - The vertices of the torus.
-   * @returns {Array} - An array of sides connecting adjacent sections.
+   * @returns {Array} - An array of edges connecting adjacent sections.
    */
   static #connectTwoAdiacentTorusSections(sliceSample, torusVertices) {
-    let sides = [];
+    let edges = [];
     for (let v = sliceSample.vertices.length; v < torusVertices.length; v += 1) {
-      if (v > torusVertices.length - 1 - sliceSample.vertices.length) sides.push(new SegmentND(torusVertices[v], torusVertices[(v + sliceSample.vertices.length) % torusVertices.length]));
-      sides.push(new SegmentND(torusVertices[v - sliceSample.vertices.length], torusVertices[v]));
+      if (v > torusVertices.length - 1 - sliceSample.vertices.length) edges.push(new SegmentND(torusVertices[v], torusVertices[(v + sliceSample.vertices.length) % torusVertices.length]));
+      edges.push(new SegmentND(torusVertices[v - sliceSample.vertices.length], torusVertices[v]));
     }
-    return sides;
+    return edges;
   }
 }
 
