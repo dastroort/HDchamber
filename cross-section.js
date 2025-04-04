@@ -59,41 +59,30 @@ class Hyperplane {
     return this.intersectWithLine(line);
   }
 
+  intersectWithFlatCell(flatCell) {
+    let intersectionPoints = [];
+    flatCell.edges.forEach((edge) => {
+      let intersection = this.intersectWithSegment(edge);
+      if (intersection !== null) intersectionPoints.push(intersection);
+    });
+    if (intersectionPoints.length === 0) return null;
+    if (intersectionPoints.length !== 2) throw new Error(`Unpredictable behavior. A flatCell would have to intersect twice a plane (not ${intersectionPoints.length} time/s).`);
+    let [start, end] = intersectionPoints;
+    return new GEOLIB.SegmentND(start, end);
+  }
+
   crossSectionOfMesh(mesh) {
     let crossSectionVertices = [];
+    let crossSectionEdges = [];
+
     mesh.edges.forEach((edge) => {
       let vertex = this.intersectWithSegment(edge);
       if (vertex !== null) crossSectionVertices.push(vertex);
     });
 
-    let crossSectionEdges = [];
-    let vertexConnections = new Map();
-
-    crossSectionVertices.forEach((A, indexA) => {
-      let distances = [];
-      crossSectionVertices.forEach((B, indexB) => {
-        if (indexA < indexB) {
-          let distanceSquare = A.distanceSquare(B);
-          distances.push({ vertex: B, distanceSquare });
-        }
-      });
-      distances.sort((a, b) => a.distanceSquare - b.distanceSquare);
-      let closestPointsForA = distances.slice(0, mesh.nthDimension()).map((d) => d.vertex);
-
-      closestPointsForA.forEach((closestPoint) => {
-        let AConnections = vertexConnections.get(A) || 0;
-        let BConnections = vertexConnections.get(closestPoint) || 0;
-
-        if (AConnections < 2 && BConnections < 2) {
-          const extremes = [A, closestPoint].sort((a, b) => a.id - b.id);
-
-          const segment = new GEOLIB.SegmentND(...extremes);
-          crossSectionEdges.push(segment);
-
-          vertexConnections.set(A, AConnections + 1);
-          vertexConnections.set(closestPoint, BConnections + 1);
-        }
-      });
+    mesh.flatCells.forEach((flatCell) => {
+      let crossSectionEdge = this.intersectWithFlatCell(flatCell);
+      if (crossSectionEdge !== null) crossSectionEdges.push(crossSectionEdge);
     });
 
     return new GEOLIB.MeshND(crossSectionVertices, crossSectionEdges);
