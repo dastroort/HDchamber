@@ -421,9 +421,10 @@ class PointND {
  * @param {SegmentND[]} [edges=[]] - Optional array of sub-mesh edges connected to the vertices.
  */
 class MeshND {
-  constructor(vertices, edges = []) {
+  constructor(vertices, edges = [], flatCells = []) {
     this.vertices = vertices;
     this.edges = edges;
+    this.flatCells = flatCells;
     this.nthDimension = () => this.vertices[0].nthDimension();
   }
 
@@ -619,7 +620,8 @@ class Hypercube extends MeshND {
   constructor(dimensions, edge = DEFAULT_SIZE) {
     let vertices = Hypercube.#createHypercubeVertices(dimensions, edge);
     let edges = Hypercube.#createHypercubeEdges(dimensions, vertices);
-    super(vertices, edges);
+    let flatCells = Hypercube.#createHypercubeFlatCells(dimensions, edge, vertices);
+    super(vertices, edges, flatCells);
   }
 
   /**
@@ -664,6 +666,25 @@ class Hypercube extends MeshND {
       }
     }
     return edges;
+  }
+
+  static #createHypercubeFlatCells(dimensions, edge, vertices) {
+    let flatCells = [];
+    for (let sharedIndex1 = 0; sharedIndex1 < dimensions; sharedIndex1++) {
+      for (let sharedIndex2 = sharedIndex1 + 1; sharedIndex2 < dimensions; sharedIndex2++) {
+        for (let sharedValue1 = -edge / 2; sharedValue1 <= edge / 2; sharedValue1 += edge) {
+          for (let sharedValue2 = -edge / 2; sharedValue2 <= edge / 2; sharedValue2 += edge) {
+            let flatCellVertices = [];
+            for (let k = 0; k < vertices.length; k++) {
+              if (vertices[k].coordinates[sharedIndex1] === sharedValue1 && vertices[k].coordinates[sharedIndex2] === sharedValue2) flatCellVertices.push(vertices[k]);
+            }
+            let flatCellEdges = Hypercube.#createHypercubeEdges(2, flatCellVertices);
+            flatCells.push(new MeshND(flatCellVertices, flatCellEdges));
+          }
+        }
+      }
+    }
+    return flatCells;
   }
 }
 
