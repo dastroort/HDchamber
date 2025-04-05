@@ -518,7 +518,8 @@ class MeshND {
     this.extendIn(matrix.length);
     this.vertices = this.vertices.map((vertex) => vertex.transform(matrix));
     this.edges = this.edges.map((edge) => edge.transform(matrix));
-    return new MeshND(this.vertices, this.edges);
+    this.flatCells = this.flatCells.map((flatCell) => flatCell.transform(matrix));
+    return new MeshND(this.vertices, this.edges, this.flatCells);
   }
 }
 
