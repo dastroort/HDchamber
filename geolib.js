@@ -82,6 +82,24 @@ function setLegendCoordinate(dimensions) {
   const colorLegendLabel = document.querySelector("legend label");
   colorLegendLabel.innerHTML = coordinateToMap + " Coordinate";
 }
+
+// Funzione helper per generare tutte le combinazioni di 'comboSize' elementi da un array
+function combinations(array, comboSize) {
+  const result = [];
+  function combine(start, combo) {
+    if (combo.length === comboSize) {
+      result.push([...combo]);
+      return;
+    }
+    for (let i = start; i < array.length; i++) {
+      combo.push(array[i]);
+      combine(i + 1, combo);
+      combo.pop();
+    }
+  }
+  combine(0, []);
+  return result;
+}
 class SingletonMatrix {
   static #instance = null;
 
@@ -621,7 +639,7 @@ class Hypercube extends MeshND {
   constructor(dimensions, edge = DEFAULT_SIZE) {
     let vertices = Hypercube.#createHypercubeVertices(dimensions, edge);
     let edges = Hypercube.#createHypercubeEdges(dimensions, vertices);
-    let flatCells = Hypercube.#createHypercubeFlatCells(dimensions, edge, vertices);
+    let flatCells = Hypercube.#createHypercubeFlatCells(dimensions, vertices);
     super(vertices, edges, flatCells);
   }
 
@@ -669,23 +687,34 @@ class Hypercube extends MeshND {
     return edges;
   }
 
-  static #createHypercubeFlatCells(dimensions, edge, vertices) {
+  static #createHypercubeFlatCells(dimensions, vertices) {
+    if (dimensions < 3) return [];
     let flatCells = [];
-    for (let sharedIndex1 = 0; sharedIndex1 < dimensions; sharedIndex1++) {
-      for (let sharedIndex2 = sharedIndex1 + 1; sharedIndex2 < dimensions; sharedIndex2++) {
-        for (let sharedValue1 = -edge / 2; sharedValue1 <= edge / 2; sharedValue1 += edge) {
-          for (let sharedValue2 = -edge / 2; sharedValue2 <= edge / 2; sharedValue2 += edge) {
-            let flatCellVertices = [];
-            for (let k = 0; k < vertices.length; k++) {
-              if (vertices[k].coordinates[sharedIndex1] === sharedValue1 && vertices[k].coordinates[sharedIndex2] === sharedValue2) flatCellVertices.push(vertices[k]);
-            }
-            let flatCellEdges = Hypercube.#createHypercubeEdges(2, flatCellVertices);
-            flatCells.push(new MeshND(flatCellVertices, flatCellEdges));
-          }
-        }
+    const quartets = combinations(vertices, 4);
+
+    for (let flatCellVertices of quartets) {
+      if (isValidSquare(flatCellVertices)) {
+        let flatCellEdges = Hypercube.#createHypercubeEdges(2, flatCellVertices);
+        flatCells.push(new MeshND(flatCellVertices, flatCellEdges));
       }
     }
     return flatCells;
+
+    function isValidSquare(quartet) {
+      if (quartet.length !== 4) throw new Error("It's not a quartet of vertices.");
+      let sharedIndexes = 0;
+      for (let i = 0; i < dimensions; i++) {
+        let sharedIndexForAllVertices = true;
+        for (let k = 0; k < quartet.length - 1; k++) {
+          if (quartet[k].coordinates[i] !== quartet[k + 1].coordinates[i]) {
+            sharedIndexForAllVertices = false;
+            break;
+          }
+        }
+        if (sharedIndexForAllVertices) sharedIndexes++;
+      }
+      return sharedIndexes === dimensions - 2;
+    }
   }
 }
 
@@ -703,7 +732,8 @@ class Simplex extends MeshND {
   constructor(dimensions, edge = DEFAULT_SIZE) {
     const vertices = Simplex.#createSimplex(dimensions, edge);
     const edges = Simplex.#createSimplexEdges(dimensions, vertices);
-    super(vertices, edges);
+    const flatCells = Simplex.#createSimplexFlatCells(vertices);
+    super(vertices, edges, flatCells);
   }
 
   /**
@@ -771,6 +801,16 @@ class Simplex extends MeshND {
       }
     }
     return edges;
+  }
+
+  static #createSimplexFlatCells(vertices) {
+    const flatCells = [];
+    const tris = combinations(vertices, 3);
+    for (let flatCellVertices of tris) {
+      const flatCellEdges = Simplex.#createSimplexEdges(2, flatCellVertices);
+      flatCells.push(new MeshND(flatCellVertices, flatCellEdges));
+    }
+    return flatCells;
   }
 }
 
