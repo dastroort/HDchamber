@@ -9,6 +9,7 @@
     <script src="https://kit.fontawesome.com/7fe70165d0.js" crossorigin="anonymous"></script>
     <script type="module" defer src="geolib.js"></script>
     <script type="module" defer src="app.js"></script>
+    <script type="module" defer src="cross-section.js"></script>
   </head>
   <body>
     <ul class="left buttons">
@@ -16,26 +17,26 @@
         <a class="button esc" href="javascript:history.go(-1)"><i class="icon fa-solid fa-angle-left"></i></a>
       </li>
       <li>
-        <button class="button rotation-handler">
+        <button class="button rotation-handler" title="Edit rotations">
           <img class="icon" src="./icons/rotation-icon.png" alt="Rotation icon" />
         </button>
         <ul class="dropmenu"></ul>
       </li>
-      <li class="meshes-handler">
+      <li class="meshes-handler" title="Select a mesh to render!">
         <button class="button">
           <i class="icon fa-solid fa-cube"></i>
         </button>
         <ul class="dropmenu"></ul>
       </li>
       <li>
-        <button class="button projection-mode">
+        <button class="button projection-mode" title="Enable orthogonal projection">
           <img class="icon" src="icons/orto_off.png" alt="orto_off" />
         </button>
       </li>
     </ul>
     <ul class="right buttons">
       <li>
-        <button class="button wiki">
+        <button class="button wiki" title="Open the Wiki">
           <i class="icon fa-solid fa-circle-info"></i>
         </button>
         <div class="wikipage">
@@ -44,13 +45,23 @@
         </div>
       </li>
       <li>
-        <button class="button dimensions-handler">
+        <button class="button dimensions-handler" title="Select the number of dimensions to render!">
           <i class="fa-solid fa-d"></i>
         </button>
       </li>
       <li>
-        <button onclick="wait()" class="button w-coordinate-mode">
-          <i class="icon fa-solid fa-w"></i>
+        <button onclick="wait()" class="button color-mapping-mode" title="Work in progress...">
+          <img src="icons/color-mapping.png" alt="Color mapping mode icon" class="icon" />
+        </button>
+      </li>
+      <li>
+        <button class="button cross-section-mode" title="Enable cross-section mode">
+          <img class="icon" src="icons/cross-section.png" alt="Cross-section mode icon" />
+        </button>
+      </li>
+      <li>
+        <button onclick="wait()" class="button axes" title="Work in progress...">
+          <img class="icon" src="icons/axes.png" alt="Axes icon" />
         </button>
       </li>
     </ul>
