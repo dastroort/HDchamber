@@ -8,7 +8,7 @@ const DEFAULT_RENDER_SCALE = 200;
 const DEFAULT_SIZE = 1.5;
 const DEFAULT_COMPLEXITY = 8;
 const cameraDistance = 3;
-const cameraZoom = 2;
+const DEFAULT_CAMERA_ZOOM = 2;
 const axisIdentifiers = "xyzwvu";
 const DEPTH_MAPPING_DIMENSION = 3;
 const COLOR_MAPPING_DIMENSION = 4;
@@ -372,7 +372,7 @@ class PointND {
     while (vertexDimension > dimensions) {
       let lastCoordinate = this.coordinates.pop();
       if (!isOrthogonalProjection || vertexDimension > DEPTH_MAPPING_DIMENSION) {
-        const perspectiveFactor = cameraZoom / (cameraDistance - lastCoordinate);
+        const perspectiveFactor = DEFAULT_CAMERA_ZOOM / (cameraDistance - lastCoordinate);
         this.coordinates = this.coordinates.map((coordinate) => coordinate * perspectiveFactor);
       }
       vertexDimension -= 1;
@@ -389,7 +389,7 @@ class PointND {
    * @param {number} [scale=DEFAULT_RENDER_SCALE] - Scaling factor for rendering.
    * @throws {Error} If the point's dimensionality exceeds or is insufficient for the context dimension.
    */
-  draw(depthSample, colorSample = undefined, dimensionalScope = undefined, scale = DEFAULT_RENDER_SCALE) {
+  draw(depthSample, colorSample = undefined, dimensionalScope = undefined, scale = DEFAULT_RENDER_SCALE, opacity = 1) {
     if (this.nthDimension > CONTEXT_DIMENSION) throw new Error("This point has too many dimensions to be drawn. You should project it");
     if (this.nthDimension < CONTEXT_DIMENSION) this.convertTo(CONTEXT_DIMENSION);
 
@@ -401,14 +401,14 @@ class PointND {
     let positionY = scale * this.coordinates[1] + MAX_DRAWN_POINT_SIZE / 2 + screenDimensions.height / 2;
     if (isNaN(positionY)) throw new Error("PositionY non è un numero");
     context.arc(positionX, positionY, pointSize, 0, 2 * Math.PI, false);
-    context.stroke();
-    context.strokeStyle = "rgba(0,0,0,0.25)";
+    // context.stroke();
+    // context.strokeStyle = "rgba(0,0,0,0.25)";
 
     // Calcola il colore basato su hyperdepth
-    let color = `hsla(270, 9.8%, 80%, ${BRIGHTNESS / ((1 + FOG) * (cameraDistance - depthSample))}%)`;
+    let color = `hsla(270, 9.8%, 80%, ${(BRIGHTNESS * opacity) / ((1 + FOG) * (cameraDistance - depthSample))}%)`;
     if (dimensionalScope !== undefined && dimensionalScope >= COLOR_MAPPING_DIMENSION) {
       let hue = 36 * colorSample + 270; // Hue secondo i commenti
-      color = `hsla(${hue}, 100%, 50%, ${BRIGHTNESS / ((1 + FOG) * (cameraDistance - depthSample))}%)`;
+      color = `hsla(${hue}, 100%, 50%, ${(BRIGHTNESS * opacity) / ((1 + FOG) * (cameraDistance - depthSample))}%)`;
     }
 
     // Applica il colore calcolato come riempimento
@@ -493,7 +493,7 @@ class MeshND {
    * @param {boolean} [isOrthogonalProjection=false] - Whether the projection is orthogonal.
    * @param {number} [renderingScale=DEFAULT_RENDER_SCALE] - Scale factor for rendering the mesh.
    */
-  render(rotationScope, isOrthogonalProjection = false, renderingScale = DEFAULT_RENDER_SCALE) {
+  render(rotationScope, isOrthogonalProjection = false, renderingScale = DEFAULT_RENDER_SCALE, opacity = 1) {
     this.vertices.forEach((vertex) => {
       let colorSample = undefined;
       let projectedVertex = new PointND(...vertex.coordinates);
@@ -505,10 +505,10 @@ class MeshND {
         setLegendCoordinate(Math.max(rotationScope, this.nthDimension()));
       }
       if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.#pickDepthSample(vertex);
-      projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()));
+      projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()), renderingScale, opacity);
     });
     this.edges.forEach((edge) => {
-      edge.render(isOrthogonalProjection, renderingScale, Math.max(rotationScope, edge.start.nthDimension()));
+      edge.render(isOrthogonalProjection, renderingScale, Math.max(rotationScope, edge.start.nthDimension()), opacity);
     });
   }
 
@@ -568,7 +568,7 @@ class SegmentND {
    * @param {number} [rotationScope=undefined] - Specifies scope for rotation or color mapping.
    * @throws {Error} If any computed position or dimension is invalid (e.g., NaN).
    */
-  render(isOrthogonalProjection = false, scale = DEFAULT_RENDER_SCALE, rotationScope = undefined) {
+  render(isOrthogonalProjection = false, scale = DEFAULT_RENDER_SCALE, rotationScope = undefined, opacity = 1) {
     let colorSample1 = undefined;
     let colorSample2 = undefined;
     if (rotationScope >= COLOR_MAPPING_DIMENSION) {
@@ -594,7 +594,7 @@ class SegmentND {
     context.beginPath();
     context.moveTo(positionX, positionY);
     context.lineTo(positionX_1, positionY_1);
-    let color = `hsla(270, 9.8%, 80%, ${BRIGHTNESS / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`;
+    let color = `hsla(270, 9.8%, 80%, ${(BRIGHTNESS * opacity) / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`;
     context.strokeStyle = color;
     context.lineWidth = 2.5 / (cameraDistance - depth);
 
@@ -604,8 +604,8 @@ class SegmentND {
 
       // Create a linear gradient
       const gradient = context.createLinearGradient(positionX, positionY, positionX_1, positionY_1);
-      gradient.addColorStop(0, `hsla(${hue1}, 100%, 50%, ${BRIGHTNESS / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`);
-      gradient.addColorStop(1, `hsla(${hue2}, 100%, 50%, ${BRIGHTNESS / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`);
+      gradient.addColorStop(0, `hsla(${hue1}, 100%, 50%, ${(BRIGHTNESS * opacity) / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`);
+      gradient.addColorStop(1, `hsla(${hue2}, 100%, 50%, ${(BRIGHTNESS * opacity) / ((1 + 2 * FOG) * (cameraDistance - depth))}%)`);
 
       context.strokeStyle = gradient;
     }
@@ -1094,4 +1094,20 @@ function resizeCanvas() {
   context.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
 }
 
-export { axisIdentifiers, rotationScope, disableColorLegend, SingletonMatrix, PointND, SegmentND, MeshND, Hypercube, Hypersphere, Simplex, Torus, Orthoplex, uploadEnvironment, resizeCanvas };
+export {
+  DEFAULT_RENDER_SCALE,
+  axisIdentifiers,
+  rotationScope,
+  disableColorLegend,
+  SingletonMatrix,
+  PointND,
+  SegmentND,
+  MeshND,
+  Hypercube,
+  Hypersphere,
+  Simplex,
+  Torus,
+  Orthoplex,
+  uploadEnvironment,
+  resizeCanvas,
+};

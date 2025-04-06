@@ -1,4 +1,5 @@
 import * as GEOLIB from "/geolib.js";
+import * as CROSS_SECTION from "/cross-section.js";
 
 // VARIABILI GLOBALI PER L'APPLICAZIONE
 const app = {
@@ -14,6 +15,8 @@ const app = {
   guiHandlers: {},
   animationId: {},
   meshToRender: null,
+  isCrossSectionMode: false,
+  renderScale: GEOLIB.DEFAULT_RENDER_SCALE,
 };
 
 async function fetchWikiData() {
@@ -286,6 +289,35 @@ function writeDefaultWikiPage(container) {
   });
 }
 
+app.guiHandlers.crossSection = {
+  button: document.querySelector(".button.cross-section-mode"),
+};
+
+app.guiHandlers.crossSection.button.addEventListener("click", () => {
+  app.isCrossSectionMode = !app.isCrossSectionMode;
+  if (app.isCrossSectionMode) {
+    app.guiHandlers.crossSection.button.setAttribute("title", "Disable cross-section mode");
+  } else {
+    app.guiHandlers.crossSection.button.setAttribute("title", "Enable cross-section mode");
+  }
+});
+
+window.addEventListener("wheel", () => {
+  const threshold = 5;
+  const zoomIn = (threshold) => {
+    app.renderScale += threshold;
+  };
+  const zoomOut = (threshold) => {
+    app.renderScale -= threshold;
+  };
+
+  if (event.deltaY < 0) {
+    zoomIn(threshold);
+  } else {
+    zoomOut(threshold);
+  }
+});
+
 function tic(input) {
   app.isRendering = true;
   app.finalTime = Date.now();
@@ -312,7 +344,7 @@ function renderEnvironment(input) {
   // Aggiorno il titolo
   const h1 = document.querySelector("h1");
   const humanizedInput = humanizeMeshName(`${app.dimensionsToRender}-${input}`);
-  h1.innerHTML = `A ${humanizedInput} rotating in ${rotationScope}D`;
+  h1.innerHTML = `A ${humanizedInput} is rotating in ${rotationScope}D`;
   // Applico la rotazione
   for (let i = 0; i < app.guiHandlers.rotation.planes.length; i++) {
     r.set("r", [app.guiHandlers.rotation.planes[i], angles[i]]);
@@ -322,12 +354,24 @@ function renderEnvironment(input) {
   // Distruggo la matrice di rotazione. E' importante farlo per evitare memory leaks
   r.destroy();
   // Disegno la mesh
-  mesh.render(rotationScope, app.guiHandlers.projection.isOrthogonalProjection);
+  if (app.isCrossSectionMode) {
+    renderCrossSection(mesh);
+    const opacity = smoothGoniometricTransition(0.25, 0.5);
+    mesh.render(rotationScope, app.guiHandlers.projection.isOrthogonalProjection, app.renderScale, opacity);
+
+    function renderCrossSection(mesh) {
+      const zeros = Array(app.dimensionsToRender - 1).fill(0);
+      const hyperplane = new CROSS_SECTION.Hyperplane([...zeros, 1]);
+      const crossSection = hyperplane.crossSectionOfMesh(mesh, app.dimensionsToRender);
+      crossSection.render(app.dimensionsToRender - 1, app.guiHandlers.projection.isOrthogonalProjection, app.renderScale, 5);
+    }
+    function smoothGoniometricTransition(angularSpeed, maxY = 1) {
+      const phase = app.angle - 2 * Math.PI;
+      const eased = 0.5 * (1 - Math.cos(angularSpeed * phase));
+      return Math.min(Math.pow(eased, 3), maxY);
+    }
+  } else {
+    mesh.render(rotationScope, app.guiHandlers.projection.isOrthogonalProjection, app.renderScale);
+  }
   app.animationId = requestAnimationFrame(() => tic(input));
 }
-
-// STOP FRAME ANIMETION AFTER 10S (only debugging)
-// setTimeout(() => {
-//   cancelAnimationFrame(app.animationId);
-//   console.log("Loop interrotto");
-// }, 10000);
