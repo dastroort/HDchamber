@@ -6,7 +6,7 @@ const screenDimensions = { width: window.innerWidth, height: (77.5 / 100) * wind
 
 const DEFAULT_RENDER_SCALE = 200;
 const DEFAULT_SIZE = 1.5;
-const DEFAULT_COMPLEXITY = 8;
+const DEFAULT_COMPLEXITY = 12;
 const cameraDistance = 3;
 const DEFAULT_CAMERA_ZOOM = 2;
 const axisIdentifiers = "xyzwvu";
@@ -428,6 +428,21 @@ class PointND {
     for (let dim = 0; dim < this.nthDimension(); dim++) sum += Math.pow(this.coordinates[dim] - point.coordinates[dim], 2);
     return sum;
   }
+
+  equals(point) {
+    if (this.nthDimension() !== point.nthDimension()) return false;
+    for (let i = 0; i < this.nthDimension(); i++) {
+      if (this.coordinates[i] !== point.coordinates[i]) return false;
+    }
+    return true;
+  }
+
+  isContained(pointsArray) {
+    for (let i = 0; i < pointsArray.length; i++) {
+      if (this.equals(pointsArray[i])) return true;
+    }
+    return false;
+  }
 }
 
 /**
@@ -828,8 +843,7 @@ class Simplex extends MeshND {
 class Hypersphere extends MeshND {
   constructor(dimensions, radius = DEFAULT_SIZE, complexity = DEFAULT_COMPLEXITY) {
     const hypersphere = Hypersphere.#createHypersphere(dimensions, radius, complexity);
-    // const edges = Hypersphere.#createHypersphereEdges(vertices, complexity);
-    super(hypersphere.vertices, hypersphere.edges);
+    super(hypersphere.vertices, hypersphere.edges, hypersphere.flatCells);
   }
 
   /**
@@ -845,7 +859,7 @@ class Hypersphere extends MeshND {
    * @returns {Object} An object containing `vertices` (Array<PointND>) and `edges` (Array<SegmentND>).
    */
   static #createHypersphere(dimensions, radius, complexity, pointstamp = []) {
-    let stepAngle = Math.PI / complexity;
+    let stepAngle = (2 * Math.PI) / complexity;
     if (dimensions === 1) {
       return { vertices: new Hypercube(1, radius).vertices, edges: [] };
     }
@@ -856,17 +870,19 @@ class Hypersphere extends MeshND {
       // Caso ricorsivo: costruisci i punti utilizzando le sezioni di ipersfere di dimensioni inferiori
       let vertices = [];
       let edges = [];
+      let flatCells = [];
       let previousHypersphereSection = undefined;
       for (let i = 0; i <= complexity; i++) {
-        let w = radius * Math.cos(Math.PI - (i * Math.PI) / complexity);
+        let w = radius * Math.cos(Math.PI - (i * 2 * Math.PI) / complexity);
         let hypersphereSectionRadius = Math.sqrt(radius * radius - w * w);
         let hypersphereSection = Hypersphere.#createHypersphere(dimensions - 1, hypersphereSectionRadius, complexity, pointstamp.concat(w));
         vertices.push(...hypersphereSection.vertices);
         edges.push(...hypersphereSection.edges, ...Hypersphere.connectTwoAdiacentHypersphereSections(previousHypersphereSection, hypersphereSection));
+        flatCells.push(...Hypersphere.#createFlatCellsBetween(previousHypersphereSection, hypersphereSection, dimensions));
         previousHypersphereSection = hypersphereSection;
       }
       // connect adiacent sections
-      return { vertices: vertices, edges: edges };
+      return { vertices: vertices, edges: edges, flatCells: flatCells };
     }
   }
 
@@ -883,6 +899,22 @@ class Hypersphere extends MeshND {
     let edges = [];
     for (let v = 0; v < hypersphereSection.vertices.length; v++) edges.push(new SegmentND(previousHypersphereSection.vertices[v], hypersphereSection.vertices[v]));
     return edges;
+  }
+
+  static #createFlatCellsBetween(previousHypersphereSection, hypersphereSection, dimensions) {
+    if (previousHypersphereSection === undefined || hypersphereSection === undefined) return [];
+    if (dimensions < 2) return [];
+    let flatCells = [];
+    for (let v = 1; v <= hypersphereSection.vertices.length; v++) {
+      let a = previousHypersphereSection.vertices[v - 1];
+      let b = hypersphereSection.vertices[v - 1];
+      let c = previousHypersphereSection.vertices[v % hypersphereSection.vertices.length];
+      let d = hypersphereSection.vertices[v % hypersphereSection.vertices.length];
+      let flatCellVertices = [a, b, c, d];
+      let flatCellEdges = [new SegmentND(a, c), new SegmentND(a, b), new SegmentND(b, d), new SegmentND(d, c)];
+      flatCells.push(new MeshND(flatCellVertices, flatCellEdges));
+    }
+    return flatCells;
   }
 
   /**
@@ -957,8 +989,8 @@ class Hypersphere extends MeshND {
 class Orthoplex extends MeshND {
   constructor(dimensions, edge = DEFAULT_SIZE) {
     const radius = edge * Math.SQRT1_2;
-    const orthoplex = new Hypersphere(dimensions, radius, 2);
-    super(orthoplex.vertices, orthoplex.edges);
+    const orthoplex = new Hypersphere(dimensions, radius, 4);
+    super(orthoplex.vertices, orthoplex.edges, orthoplex.flatCells);
   }
 }
 
@@ -1013,7 +1045,7 @@ class Torus extends MeshND {
     // T.destroy();
     let stamp = "x" + axisIdentifiers[dimensions - 1];
 
-    let stepAngle = Math.PI / complexity;
+    let stepAngle = (2 * Math.PI) / complexity;
     for (let i = 0; i < 2 * complexity; i++) {
       let R = SingletonMatrix.init(dimensions);
       R.set("r", [stamp, stepAngle]);

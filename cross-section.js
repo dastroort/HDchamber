@@ -63,7 +63,7 @@ class Hyperplane {
     let intersectionPoints = [];
     flatCell.edges.forEach((edge) => {
       let intersection = this.intersectWithSegment(edge);
-      if (intersection !== null) intersectionPoints.push(intersection);
+      if (intersection !== null && !intersection.isContained(intersectionPoints)) intersectionPoints.push(intersection);
     });
     if (intersectionPoints.length === 0) return null;
     if (intersectionPoints.length !== 2) throw new Error(`Unpredictable behavior. A flatCell would have to intersect twice a plane (not ${intersectionPoints.length} time/s).`);
