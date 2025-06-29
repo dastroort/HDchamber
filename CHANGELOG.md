@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ...
 
+## [1.3.0-alpha] - 2025-04-17
+
+### Added
+
+- **Cross-section mode**: introduced support for cross-sectional visualization of multidimensional shapes intersected by hyperplanes. This includes a new cross-section.js module and integration with rendering logic. A new toolbar button enables or disables this mode dynamically.
+
+- **Integrated Wiki system**: users can now access rich documentation for each mesh directly within the interface. This is powered by the new wiki.json file and dynamic UI rendering inside the wikipage panel.
+
+- **Humanized mesh names**: technical mesh names (e.g., "4-Hypercube") are now automatically converted into human-readable labels (e.g., "Tesseract") throughout the UI via a new humanizeMeshName() function using Wiki data.
+
+- **Mouse wheel zoom**: users can zoom in and out of the rendering canvas using the scroll wheel. The system handles thresholding and smooth scale control in app.js.
+
+- **New buttons and icons**: added several toolbar buttons for cross-section mode, Wiki panel, and upcoming features like axis display and color mapping. Icons have been included in the icons/ directory and wired to the UI via index.html and CSS transitions.
+
+- **Opacity management for cross-sections**: when cross-section mode is enabled, the background mesh is now rendered with softened opacity using goniometric transitions to enhance depth perception.
+
+### Changed
+
+- **Renamed** the data file from info.json to wiki.json to better reflect its function as a Wiki source.
+
+- **Refactored mesh initialization logic**: replaced direct constructor calls (like new Hypercube) with a new selectMesh() dispatch function for improved clarity and modularity in app.js.
+
+- **Mesh label rendering**: improved the < h1 > display title to use humanized names via Wiki metadata rather than raw technical identifiers (e.g., 4-Hypercube → Tesseract).
+
+### Fixed
+
+- **Dropmenu transition bug**: fixed an issue where mesh selector dropdowns would remain visible or misalign after toggling; now using transitionend events to toggle display: none cleanly.
+
+- **Fallback Wiki behavior**: addressed crashes from missing Wiki data by introducing writeDefaultWikiPage() for meshes not yet included in wiki.json.
+
 ## [1.2.0-alpha] - 2025-03-27
 
 ### Added
@@ -68,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Everything!
 
-[unreleased]: https://github.com/dastroort/hdchamber/compare/v1.2.0-alpha...HEAD
+[unreleased]: https://github.com/dastroort/hdchamber/compare/v1.3.0-alpha...HEAD
+[1.3.0-alpha]: https://github.com/dastroort/hdchamber/compare/v1.2.0-alpha...v1.3.0-alpha
 [1.2.0-alpha]: https://github.com/dastroort/hdchamber/compare/v1.1.0-alpha...v1.2.0-alpha
 [1.1.0-alpha]: https://github.com/dastroort/hdchamber/compare/v1.0.0...v1.1.0-alpha
 [1.0.0-demo]: https://github.com/dastroort/hdchamber/releases/tag/v1.0.0
