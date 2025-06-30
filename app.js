@@ -17,9 +17,10 @@ const app = {
   meshToRender: null,
   isCrossSectionMode: false,
   renderScale: GEOLIB.DEFAULT_RENDER_SCALE,
+  isOrtho: false,
 };
 
-async function fetchWikiData() {
+async function fetchWiki() {
   try {
     const response = await fetch("./wiki.json");
     const wiki = await response.json();
@@ -29,50 +30,71 @@ async function fetchWikiData() {
   }
 }
 
-const WIKI = await fetchWikiData();
-console.log(WIKI);
+const WIKI = await fetchWiki();
 
-// CONFIGURAZIONE DEL CANVAS
-window.addEventListener("resize", () => {
-  GEOLIB.resizeCanvas();
-  const h1 = document.querySelector("h1");
-  h1.style.textAlign = "center";
-  const legend = document.querySelector("legend");
-  legend.style.margin = "auto";
-  tic();
-});
+function addWindowEvents() {
+  window.addEventListener("resize", () => {
+    GEOLIB.resizeCanvas();
+    const h1 = document.querySelector("h1");
+    h1.style.textAlign = "center";
+    const legend = document.querySelector("legend");
+    legend.style.margin = "auto";
+    tic();
+  });
+  window.addEventListener("wheel", () => {
+    const threshold = 5;
+    const zoomIn = (threshold) => {
+      app.renderScale += threshold;
+    };
+    const zoomOut = (threshold) => {
+      app.renderScale -= threshold;
+    };
 
-// CONFIGURAZIONE DEL BOTTONE CHE ATTIVA/DISATTIVA LA PROIEZIONE ORTOGONALE
-app.guiHandlers.projection = {
-  button: document.querySelector(".button.projection-mode"),
-  icon: document.querySelector(".button.projection-mode .icon"),
-  isOrthogonalProjection: false,
-};
-function toggle(itemStatus, onTrue, onFalse) {
-  return itemStatus ? onFalse : onTrue;
+    if (event.deltaY < 0) {
+      zoomIn(threshold);
+    } else {
+      zoomOut(threshold);
+    }
+  });
 }
-app.guiHandlers.projection.button.addEventListener("click", () => {
-  app.guiHandlers.projection.isOrthogonalProjection = !app.guiHandlers.projection.isOrthogonalProjection;
-  app.guiHandlers.projection.icon.src = `./icons/orto_${toggle(app.guiHandlers.projection.isOrthogonalProjection, "on", "off")}.png`;
-});
 
-// CONFIGURAZIONE DEL BOTTONE CHE GESTISCE LA SELEZIONE DELLE MESH
-app.guiHandlers.meshes = {
-  button: document.querySelector(".meshes-handler .button"),
-  dropmenu: document.querySelector(".meshes-handler .dropmenu"),
-  meshButtons: null,
-};
+function addGuiHandlers() {
+  setProjectionMode();
+  setMeshSelector();
+  setDimensionsHandler();
+  setRotationHandler();
+  setWikiHandler();
+  setCrossSectionMode();
+}
+
+function setProjectionMode() {
+  const projection = {
+    button: document.querySelector(".button.projection-mode"),
+    icon: document.querySelector(".button.projection-mode .icon"),
+  };
+  function toggle(itemStatus, onTrue, onFalse) {
+    return itemStatus ? onFalse : onTrue;
+  }
+  function setButton() {
+    projection.button.addEventListener("click", () => {
+      app.isOrtho = !app.isOrtho;
+      projection.icon.src = `./icons/orto_${toggle(projection.isOrtho, "on", "off")}.png`;
+    });
+  }
+
+  setButton();
+  app.guiHandlers.projection = projection;
+}
 
 function isDropmenuOpen(dropmenu) {
   return dropmenu.classList.contains("open");
 }
 
-function setDropmenuBehavior(dropmenu) {
+function toggleDropmenu(dropmenu) {
   dropmenu.style.display = "flex";
   setTimeout(() => {
     dropmenu.classList.toggle("open");
   }, 10);
-  // Imposta display: none appena finisce la transizione per evitare bug
   dropmenu.addEventListener("transitionend", () => {
     if (!isDropmenuOpen(dropmenu)) {
       dropmenu.style.display = "none";
@@ -80,39 +102,53 @@ function setDropmenuBehavior(dropmenu) {
   });
 }
 
-app.guiHandlers.meshes.button.addEventListener("click", () => {
-  setDropmenuBehavior(app.guiHandlers.meshes.dropmenu);
-});
+function setMeshSelector() {
+  const meshSelector = {
+    button: document.querySelector(".meshes-handler .button"),
+    dropmenu: document.querySelector(".meshes-handler .dropmenu"),
+    meshButtons: null,
+  };
+  function setButton() {
+    meshSelector.button.addEventListener("click", () => {
+      toggleDropmenu(meshSelector.dropmenu);
+    });
+  }
+  function setDropmenu() {
+    const meshesMap = new Map();
+    meshesMap.set("Hypercube", GEOLIB.Hypercube);
+    meshesMap.set("Simplex", GEOLIB.Simplex);
+    meshesMap.set("Hypersphere", GEOLIB.Hypersphere);
+    meshesMap.set("Torus", GEOLIB.Torus);
+    meshesMap.set("Orthoplex", GEOLIB.Orthoplex);
+    meshesMap.set("And so on...", null);
 
-const meshesMap = new Map();
-meshesMap.set("Hypercube", GEOLIB.Hypercube);
-meshesMap.set("Simplex", GEOLIB.Simplex);
-meshesMap.set("Hypersphere", GEOLIB.Hypersphere);
-meshesMap.set("Torus", GEOLIB.Torus);
-meshesMap.set("Orthoplex", GEOLIB.Orthoplex);
-meshesMap.set("And so on...", null);
+    meshesMap.keys().forEach((key) => {
+      const mesh = document.createElement("li");
+      mesh.classList.add("button", "mesh");
+      mesh.innerHTML = key;
+      meshSelector.dropmenu.appendChild(mesh);
+    });
+    // Aggiorno la property prima nulla
+    meshSelector.meshButtons = document.querySelectorAll(".button.mesh");
+    meshSelector.meshButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        app.meshToRender = button.innerHTML;
+        if (app.meshToRender !== "And so on...") {
+          cancelAnimationFrame(app.animationId);
+          uploadWikipage();
+          GEOLIB.disableColorLegend();
+          tic(app.meshToRender);
+        } else {
+          alert("Wait for new meshes!");
+        }
+      });
+    });
+  }
 
-meshesMap.keys().forEach((key) => {
-  const mesh = document.createElement("li");
-  mesh.classList.add("button", "mesh");
-  mesh.innerHTML = key;
-  app.guiHandlers.meshes.dropmenu.appendChild(mesh);
-});
-// Aggiorno la property prima nulla
-app.guiHandlers.meshes.meshButtons = document.querySelectorAll(".button.mesh");
-app.guiHandlers.meshes.meshButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    app.meshToRender = button.innerHTML;
-    if (app.meshToRender !== "And so on...") {
-      cancelAnimationFrame(app.animationId);
-      uploadWikipage();
-      GEOLIB.disableColorLegend();
-      tic(app.meshToRender);
-    } else {
-      alert("Wait for new meshes!");
-    }
-  });
-});
+  setDropmenu();
+  setButton();
+  app.guiHandlers.meshSelector = meshSelector;
+}
 
 function selectMesh(input, dimensions) {
   switch (input) {
@@ -131,192 +167,205 @@ function selectMesh(input, dimensions) {
   }
 }
 
-// GESTIONE DEL BOTTONE PER CAMBIARE IL NUMERO DI DIMENSIONI
-app.guiHandlers.dimensions = {
-  button: document.querySelector(".button.dimensions-handler"),
-  input: null,
-};
+function setDimensionsHandler() {
+  const dimensions = {
+    button: document.querySelector(".button.dimensions-handler"),
+    input: null,
+  };
+  function isValidNumberOfDimensions(dimensionsEntered) {
+    return dimensionsEntered >= app.MIN_DIMENSIONS && dimensionsEntered <= app.MAX_DIMENSIONS;
+  }
+  function setButton() {
+    dimensions.button.addEventListener("click", () => {
+      dimensions.input = prompt(`Enter the number of dimensions of the shape you want to see (${app.MIN_DIMENSIONS}-${app.MAX_DIMENSIONS}):`) * 1;
+      GEOLIB.disableColorLegend();
+      if (!isValidNumberOfDimensions(dimensions.input)) {
+        alert(`Invalid number of dimensions: ${dimensions.input}`);
+      } else {
+        app.dimensionsToRender = dimensions.input;
+      }
 
-function isValidNumberOfDimensions(dimensionsEntered) {
-  return dimensionsEntered >= app.MIN_DIMENSIONS && dimensionsEntered <= app.MAX_DIMENSIONS;
-}
-
-app.guiHandlers.dimensions.button.addEventListener("click", () => {
-  app.guiHandlers.dimensions.input = prompt(`Enter the number of dimensions of the shape you want to see (${app.MIN_DIMENSIONS}-${app.MAX_DIMENSIONS}):`) * 1;
-  GEOLIB.disableColorLegend();
-  if (!isValidNumberOfDimensions(app.guiHandlers.dimensions.input)) {
-    alert(`Invalid number of dimensions: ${app.guiHandlers.dimensions.input}`);
-  } else {
-    app.dimensionsToRender = app.guiHandlers.dimensions.input;
+      if (app.isRendering) {
+        const h1 = document.querySelector("h1");
+        h1.innerHTML = `A ${app.dimensionsToRender}-${dimensions.input} rotating in ${app.dimensionsToRender}`;
+      }
+    });
   }
 
-  if (app.isRendering) {
-    const h1 = document.querySelector("h1");
-    h1.innerHTML = `A ${app.dimensionsToRender}-${app.guiHandlers.dimensions.input} rotating in ${app.dimensionsToRender}`;
-  }
-});
-
-// GESTIONE DEL BOTTONE PER IMPOSTARE LE ROTAZIONI
-app.guiHandlers.rotation = {
-  button: document.querySelector(".button.rotation-handler"),
-  dropmenu: document.querySelector(".rotation-handler .dropmenu"),
-  planes: ["xz", "xy"],
-  angularSpeedFactors: [1, 1],
-  planeButtons: null,
-  options: null,
-};
-app.guiHandlers.rotation.button = document.querySelector(".rotation-handler");
-app.guiHandlers.rotation.dropmenu = document.querySelector(".rotation-handler + .dropmenu");
-app.guiHandlers.rotation.button.addEventListener("click", () => {
-  GEOLIB.disableColorLegend();
-  setDropmenuBehavior(app.guiHandlers.rotation.dropmenu);
-});
-
-const planesMap = new Map();
-for (let i = 0; i < app.guiHandlers.rotation.planes.length; i++) {
-  planesMap.set(app.guiHandlers.rotation.planes[i], app.guiHandlers.rotation.angularSpeedFactors[i]);
+  setButton();
+  app.guiHandlers.dimension = dimensions;
 }
-app.guiHandlers.rotation.options = document.createElement("ul");
-app.guiHandlers.rotation.options.classList.add("rotation-handler-options", "button");
-planesMap.set("+", null);
-planesMap.set("-", null);
 
-planesMap.keys().forEach((key) => {
-  const rotationPlane = document.createElement("li");
-  rotationPlane.classList.add("button", "rotation-plane", key);
-  rotationPlane.innerHTML = key.toUpperCase();
-  app.guiHandlers.rotation.dropmenu.appendChild(rotationPlane);
-});
-// Edita il fattore di velocità di rotazione di un piano, toglilo o aggiungilo.
-app.guiHandlers.rotation.planeButtons = document.querySelectorAll(".button.rotation-plane");
-app.guiHandlers.rotation.planeButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const input = button.innerHTML.toLowerCase();
-    if (input === "+" || input === "-") {
-      let rotationPlane = prompt("Enter the rotation plane you want to add or remove:");
-      if (rotationPlane) {
-        if (app.guiHandlers.rotation.planes.includes(rotationPlane)) {
-          let index = app.guiHandlers.rotation.planes.indexOf(rotationPlane);
-          app.guiHandlers.rotation.planes.splice(index, 1);
-          app.guiHandlers.rotation.angularSpeedFactors.splice(index, 1);
-          app.guiHandlers.rotation.dropmenu.querySelector(`.${rotationPlane}`).remove();
-        } else {
-          const newButton = document.createElement("li");
-          newButton.classList.add("button", "rotation-plane", rotationPlane);
-          app.guiHandlers.rotation.planes.push(rotationPlane);
-          newButton.innerHTML = rotationPlane.toUpperCase();
-          app.guiHandlers.rotation.angularSpeedFactors.push(1);
-          app.guiHandlers.rotation.dropmenu.appendChild(newButton);
+function setPlanesDropmenu(handler) {
+  function setPlanes() {
+    const planesMap = new Map();
+    for (let i = 0; i < handler.planes.length; i++) {
+      planesMap.set(handler.planes[i], handler.angularSpeedFactors[i]);
+    }
+    handler.options = document.createElement("ul");
+    handler.options.classList.add("rotation-handler-options", "button");
+    planesMap.set("+", null);
+    planesMap.set("-", null);
+
+    planesMap.keys().forEach((key) => {
+      const rotationPlane = document.createElement("li");
+      rotationPlane.classList.add("button", "rotation-plane", key);
+      rotationPlane.innerHTML = key.toUpperCase();
+      handler.dropmenu.appendChild(rotationPlane);
+    });
+  }
+
+  function setPlaneButton(button) {
+    button.addEventListener("click", () => {
+      const input = button.innerHTML.toLowerCase();
+      if (input === "+" || input === "-") {
+        let rotationPlane = prompt("Enter the rotation plane you want to add or remove:");
+        if (rotationPlane) {
+          if (handler.planes.includes(rotationPlane)) {
+            removePlane(rotationPlane);
+          } else {
+            createPlane(rotationPlane);
+          }
+        }
+      } else {
+        let rotationPlane = input;
+        let angularSpeedFactor = prompt(`Enter the angular speed factor for the plane ${rotationPlane}:`) * 1;
+        if (angularSpeedFactor) {
+          let index = handler.planes.indexOf(rotationPlane);
+          handler.angularSpeedFactors[index] = angularSpeedFactor;
         }
       }
-    } else {
-      let rotationPlane = input;
-      let angularSpeedFactor = prompt(`Enter the angular speed factor for the plane ${rotationPlane}:`) * 1;
-      if (angularSpeedFactor) {
-        let index = app.guiHandlers.rotation.planes.indexOf(rotationPlane);
-        app.guiHandlers.rotation.angularSpeedFactors[index] = angularSpeedFactor;
-      }
-    }
-  });
-});
+    });
+  }
 
-// wiki
-app.guiHandlers.wiki = {
-  button: document.querySelector(".button.wiki"),
-  wikipage: document.querySelector(".wikipage"),
-  input: null,
-  meshData: null,
-};
+  function removePlane(plane) {
+    let index = handler.planes.indexOf(plane);
+    handler.planes.splice(index, 1);
+    handler.angularSpeedFactors.splice(index, 1);
+    handler.dropmenu.querySelector(`.${plane}`).remove();
+  }
+
+  function createPlane(plane) {
+    const newButton = document.createElement("li");
+    newButton.classList.add("button", "rotation-plane", plane);
+    handler.planes.push(plane);
+    newButton.innerHTML = plane.toUpperCase();
+    handler.angularSpeedFactors.push(1);
+    handler.dropmenu.appendChild(newButton);
+  }
+
+  setPlanes();
+  handler.planeButtons = document.querySelectorAll(".button.rotation-plane");
+  handler.planeButtons.forEach((button) => {
+    setPlaneButton(button);
+  });
+}
+
+function setRotationHandler() {
+  const rotation = {
+    button: document.querySelector(".button.rotation-handler"),
+    dropmenu: document.querySelector(".rotation-handler + .dropmenu"),
+    planes: ["xz", "xy"],
+    angularSpeedFactors: [1, 1],
+    planeButtons: null,
+    options: null,
+  };
+
+  function setButton() {
+    rotation.button.addEventListener("click", () => {
+      GEOLIB.disableColorLegend();
+      toggleDropmenu(rotation.dropmenu);
+    });
+  }
+
+  setPlanesDropmenu(rotation);
+  setButton();
+  app.guiHandlers.rotation = rotation;
+}
+
+function setWikiHandler() {
+  const wiki = {
+    button: document.querySelector(".button.wiki"),
+    wikipage: document.querySelector(".wikipage"),
+    input: null,
+    meshData: null,
+  };
+
+  function setButton() {
+    wiki.button.addEventListener("click", () => {
+      wiki.wikipage.classList.toggle("open");
+      wiki.button.classList.toggle("open");
+      uploadWikipage();
+    });
+  }
+
+  setButton();
+  app.guiHandlers.wiki = wiki;
+}
+
 function uploadWikipage() {
   try {
+    function writeMeshWikipage(technicalName, container) {
+      const target = getMeshWikiData(technicalName);
+      const title = document.createElement("h3");
+      const dimensions = document.createElement("p");
+      const description = document.createElement("p");
+
+      title.innerHTML = target["commonName"];
+      dimensions.innerHTML = "Dimensions: " + target["dimensions"];
+      description.innerHTML = target["description"];
+
+      const elements = [title, dimensions, description];
+      elements.forEach((element) => {
+        container.appendChild(element);
+      });
+    }
+
     app.guiHandlers.wiki.wikipage.replaceChildren();
-    writeMeshWikiPage(app.dimensionsToRender + "-" + app.meshToRender, app.guiHandlers.wiki.wikipage);
+    writeMeshWikipage(app.dimensionsToRender + "-" + app.meshToRender, app.guiHandlers.wiki.wikipage);
   } catch {
-    writeDefaultWikiPage(app.guiHandlers.wiki.wikipage);
+    function writeDefaultWikipage(container) {
+      const title = document.createElement("h3");
+      const p = document.createElement("p");
+
+      title.innerHTML = "Welcome to the Wiki!";
+      p.innerHTML = "Select a mesh to see its documentation!";
+
+      const elements = [title, p];
+      elements.forEach((element) => {
+        container.appendChild(element);
+      });
+    }
+
+    writeDefaultWikipage(app.guiHandlers.wiki.wikipage);
   }
 }
 
-app.guiHandlers.wiki.button.addEventListener("click", () => {
-  app.guiHandlers.wiki.wikipage.classList.toggle("open");
-  app.guiHandlers.wiki.button.classList.toggle("open");
-  uploadWikipage();
-});
-
-function loadMeshWikiData(technicalName) {
+function getMeshWikiData(technicalName) {
   const target = WIKI.find((mesh) => mesh["technicalName"] === technicalName);
   if (target === undefined) throw new Error(`Cannot find the technical name "${technicalName}" in the wiki.`);
   return target;
 }
-console.log("Debug della funzione umanizzazione: ", humanizeMeshName("7-Hypercube"));
-console.log(app);
 
-function humanizeMeshName(technicalName) {
-  try {
-    const target = loadMeshWikiData(technicalName);
-    return target["commonName"];
-  } catch (error) {
-    console.warn("An error is found, it will be returned the original name.", error);
-    return technicalName;
-  }
-}
-
-function writeMeshWikiPage(technicalName, container) {
-  const target = loadMeshWikiData(technicalName);
-  const title = document.createElement("h3");
-  const dimensions = document.createElement("p");
-  const description = document.createElement("p");
-
-  title.innerHTML = target["commonName"];
-  dimensions.innerHTML = "Dimensions: " + target["dimensions"];
-  description.innerHTML = target["description"];
-
-  const elements = [title, dimensions, description];
-  elements.forEach((element) => {
-    container.appendChild(element);
-  });
-}
-
-function writeDefaultWikiPage(container) {
-  const title = document.createElement("h3");
-  const p = document.createElement("p");
-
-  title.innerHTML = "Welcome to the Wiki!";
-  p.innerHTML = "Select a mesh to see its documentation!";
-
-  const elements = [title, p];
-  elements.forEach((element) => {
-    container.appendChild(element);
-  });
-}
-
-app.guiHandlers.crossSection = {
-  button: document.querySelector(".button.cross-section-mode"),
-};
-
-app.guiHandlers.crossSection.button.addEventListener("click", () => {
-  app.isCrossSectionMode = !app.isCrossSectionMode;
-  if (app.isCrossSectionMode) {
-    app.guiHandlers.crossSection.button.setAttribute("title", "Disable cross-section mode");
-  } else {
-    app.guiHandlers.crossSection.button.setAttribute("title", "Enable cross-section mode");
-  }
-});
-
-window.addEventListener("wheel", () => {
-  const threshold = 5;
-  const zoomIn = (threshold) => {
-    app.renderScale += threshold;
-  };
-  const zoomOut = (threshold) => {
-    app.renderScale -= threshold;
+function setCrossSectionMode() {
+  const crossSection = {
+    button: document.querySelector(".button.cross-section-mode"),
   };
 
-  if (event.deltaY < 0) {
-    zoomIn(threshold);
-  } else {
-    zoomOut(threshold);
+  function setButton() {
+    crossSection.button.addEventListener("click", () => {
+      app.isCrossSectionMode = !app.isCrossSectionMode;
+      if (app.isCrossSectionMode) {
+        crossSection.button.setAttribute("title", "Disable cross-section mode");
+      } else {
+        crossSection.button.setAttribute("title", "Enable cross-section mode");
+      }
+    });
   }
-});
+
+  setButton();
+  app.guiHandlers.crossSection = crossSection;
+}
 
 function tic(input) {
   app.isRendering = true;
@@ -343,6 +392,15 @@ function renderEnvironment(input) {
 
   // Aggiorno il titolo
   const h1 = document.querySelector("h1");
+  function humanizeMeshName(technicalName) {
+    try {
+      const target = getMeshWikiData(technicalName);
+      return target["commonName"];
+    } catch (error) {
+      console.warn("An error is found, it will be returned the original name.", error);
+      return technicalName;
+    }
+  }
   const humanizedInput = humanizeMeshName(`${app.dimensionsToRender}-${input}`);
   h1.innerHTML = `A ${humanizedInput} is rotating in ${rotationScope}D`;
   // Applico la rotazione
@@ -357,13 +415,13 @@ function renderEnvironment(input) {
   if (app.isCrossSectionMode) {
     renderCrossSection(mesh);
     const opacity = smoothGoniometricTransition(0.25, 0.5);
-    mesh.render(rotationScope, app.guiHandlers.projection.isOrthogonalProjection, app.renderScale, opacity);
+    mesh.render(rotationScope, app.isOrtho, app.renderScale, opacity);
 
     function renderCrossSection(mesh) {
       const zeros = Array(app.dimensionsToRender - 1).fill(0);
       const hyperplane = new CROSS_SECTION.Hyperplane([...zeros, 1]);
       const crossSection = hyperplane.crossSectionOfMesh(mesh, app.dimensionsToRender);
-      crossSection.render(app.dimensionsToRender - 1, app.guiHandlers.projection.isOrthogonalProjection, app.renderScale, 5);
+      crossSection.render(app.dimensionsToRender - 1, app.isOrtho, app.renderScale, 5);
     }
     function smoothGoniometricTransition(angularSpeed, maxY = 1) {
       const phase = app.angle - 2 * Math.PI;
@@ -371,7 +429,10 @@ function renderEnvironment(input) {
       return Math.min(Math.pow(eased, 3), maxY);
     }
   } else {
-    mesh.render(rotationScope, app.guiHandlers.projection.isOrthogonalProjection, app.renderScale);
+    mesh.render(rotationScope, app.isOrtho, app.renderScale);
   }
   app.animationId = requestAnimationFrame(() => tic(input));
 }
+
+addWindowEvents();
+addGuiHandlers();
