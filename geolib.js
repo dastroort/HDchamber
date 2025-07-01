@@ -389,7 +389,7 @@ class PointND {
    * @param {number} [scale=DEFAULT_RENDER_SCALE] - Scaling factor for rendering.
    * @throws {Error} If the point's dimensionality exceeds or is insufficient for the context dimension.
    */
-  draw(depthSample, colorSample = undefined, dimensionalScope = undefined, scale = DEFAULT_RENDER_SCALE, opacity = 1) {
+  draw(depthSample, colorSample = undefined, dimensionalScope = undefined, scale = DEFAULT_RENDER_SCALE, opacity = 1, text = "") {
     if (this.nthDimension > CONTEXT_DIMENSION) throw new Error("This point has too many dimensions to be drawn. You should project it");
     if (this.nthDimension < CONTEXT_DIMENSION) this.convertTo(CONTEXT_DIMENSION);
 
@@ -415,6 +415,9 @@ class PointND {
     context.fillStyle = color;
     context.fill();
     context.closePath();
+
+    context.font = 10 * pointSize + "px Verdana";
+    context.fillText(text, positionX + 10, positionY + 10);
   }
 
   /**
@@ -486,7 +489,7 @@ class MeshND {
    * @param {PointND} vertex - The vertex from which to pick the color sample.
    * @returns {*} The color sample value extracted from the vertex.
    */
-  static #pickColorSample(vertex) {
+  static pickColorSample(vertex) {
     return vertex.coordinates.at(-1);
   }
 
@@ -497,7 +500,7 @@ class MeshND {
    * @param {PointND} vertex - The vertex from which to pick the depth sample.
    * @returns {number} The depth sample value extracted from the vertex.
    */
-  static #pickDepthSample(vertex) {
+  static pickDepthSample(vertex) {
     return vertex.coordinates[CONTEXT_DIMENSION - 1 + 1];
   }
 
@@ -515,11 +518,11 @@ class MeshND {
       projectedVertex = projectedVertex.projectInto(CONTEXT_DIMENSION, isOrthogonalProjection);
       let depthSample = 1;
       if (rotationScope >= COLOR_MAPPING_DIMENSION || this.nthDimension() >= COLOR_MAPPING_DIMENSION) {
-        colorSample = MeshND.#pickColorSample(vertex);
+        colorSample = MeshND.pickColorSample(vertex);
         enableColorLegend();
         setLegendCoordinate(Math.max(rotationScope, this.nthDimension()));
       }
-      if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.#pickDepthSample(vertex);
+      if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.pickDepthSample(vertex);
       projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()), renderingScale, opacity);
     });
     this.edges.forEach((edge) => {
@@ -637,6 +640,48 @@ class SegmentND {
    */
   transform(matrix) {
     return new SegmentND(this.start.transform(matrix), this.end.transform(matrix));
+  }
+}
+
+class CartesianAxes extends MeshND {
+  constructor(dimensions) {
+    const cartesianAxes = [];
+    const vertices = [];
+    const labels = [];
+    const UNIT_LENGTH = 1.5;
+    for (let i = 0; i < dimensions; i++) {
+      const axisArrow = Array(dimensions).fill(0);
+      axisArrow[i] = UNIT_LENGTH;
+      const axis = new SegmentND(PointND.origin(dimensions), new PointND(...axisArrow));
+      cartesianAxes.push(axis);
+      vertices.push(new PointND(...axisArrow));
+      labels.push(axisIdentifiers[i].toUpperCase());
+    }
+    super(vertices, cartesianAxes);
+    this.labels = labels;
+  }
+
+  render(rotationScope, isOrthogonalProjection = false, renderingScale = DEFAULT_RENDER_SCALE, opacity = 1) {
+    this.vertices.forEach((vertex, index) => {
+      let colorSample = undefined;
+      let projectedVertex = new PointND(...vertex.coordinates);
+      projectedVertex = projectedVertex.projectInto(CONTEXT_DIMENSION, isOrthogonalProjection);
+      let depthSample = 1;
+      if (rotationScope >= COLOR_MAPPING_DIMENSION || this.nthDimension() >= COLOR_MAPPING_DIMENSION) {
+        colorSample = MeshND.pickColorSample(vertex);
+        enableColorLegend();
+        setLegendCoordinate(Math.max(rotationScope, this.nthDimension()));
+      }
+      if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.pickDepthSample(vertex);
+
+      const label = this.labels[index];
+
+      projectedVertex = new PointND(...vertex.coordinates).projectInto(CONTEXT_DIMENSION, isOrthogonalProjection);
+      projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()), renderingScale, opacity, label);
+    });
+    this.edges.forEach((edge) => {
+      edge.render(isOrthogonalProjection, renderingScale, Math.max(rotationScope, edge.start.nthDimension()), opacity);
+    });
   }
 }
 
@@ -1158,4 +1203,5 @@ export {
   Orthoplex,
   uploadEnvironment,
   resizeCanvas,
+  CartesianAxes,
 };

@@ -18,6 +18,8 @@ const app = {
   isCrossSectionMode: false,
   renderScale: GEOLIB.DEFAULT_RENDER_SCALE,
   isOrtho: false,
+  axesEnabled: false,
+  fixedAxes: true,
 };
 
 async function fetchWiki() {
@@ -65,6 +67,7 @@ function addGuiHandlers() {
   setRotationHandler();
   setWikiHandler();
   setCrossSectionMode();
+  setAxesMode();
 }
 
 function setProjectionMode() {
@@ -367,6 +370,26 @@ function setCrossSectionMode() {
   app.guiHandlers.crossSection = crossSection;
 }
 
+function setAxesMode() {
+  const axesButton = document.querySelector(".axes.button");
+  let counter = 0;
+  axesButton.addEventListener("click", () => {
+    counter++;
+    if (counter % 3 === 0) {
+      app.axesEnabled = false;
+      axesButton.setAttribute("title", "Enable fixed axes");
+    } else if (counter % 3 === 1) {
+      app.axesEnabled = true;
+      app.fixedAxes = true;
+      axesButton.setAttribute("title", "Enable rotating axes");
+    } else if (counter % 3 === 2) {
+      app.fixedAxes = false;
+      axesButton.setAttribute("title", "Disable axes");
+    }
+    console.log(app.axesEnabled, app.fixedAxes);
+  });
+}
+
 function tic(input) {
   app.isRendering = true;
   app.finalTime = Date.now();
@@ -378,6 +401,7 @@ function tic(input) {
 function renderEnvironment(input) {
   const mesh = selectMesh(input, app.dimensionsToRender);
   const rotationScope = GEOLIB.rotationScope(app.guiHandlers.rotation.planes);
+  const rotatingAxes = new GEOLIB.CartesianAxes(app.dimensionsToRender);
   if (mesh.nthDimension() < rotationScope) mesh.extendIn(rotationScope);
   GEOLIB.uploadEnvironment();
   // Creo la matrice di rotazione
@@ -408,6 +432,7 @@ function renderEnvironment(input) {
     r.set("r", [app.guiHandlers.rotation.planes[i], angles[i]]);
     r.extendIn(rotationScope);
     mesh.transform(r.value);
+    rotatingAxes.transform(r.value);
   }
   // Distruggo la matrice di rotazione. E' importante farlo per evitare memory leaks
   r.destroy();
@@ -430,6 +455,13 @@ function renderEnvironment(input) {
     }
   } else {
     mesh.render(rotationScope, app.isOrtho, app.renderScale);
+  }
+  // Rendering assi
+  if (app.axesEnabled && app.fixedAxes) {
+    const fixedAxes = new GEOLIB.CartesianAxes(app.dimensionsToRender);
+    fixedAxes.render(rotationScope, app.isOrtho, app.renderScale);
+  } else if (!app.fixedAxes && app.axesEnabled) {
+    rotatingAxes.render(rotationScope, app.isOrtho, app.renderScale);
   }
   app.animationId = requestAnimationFrame(() => tic(input));
 }
