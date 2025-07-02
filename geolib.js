@@ -416,7 +416,7 @@ class PointND {
     context.fill();
     context.closePath();
 
-    context.font = 10 * pointSize + "px Verdana";
+    context.font = 7.5 * pointSize + "px Verdana";
     context.fillText(text, positionX + 10, positionY + 10);
   }
 
@@ -511,7 +511,7 @@ class MeshND {
    * @param {boolean} [isOrthogonalProjection=false] - Whether the projection is orthogonal.
    * @param {number} [renderingScale=DEFAULT_RENDER_SCALE] - Scale factor for rendering the mesh.
    */
-  render(rotationScope, isOrthogonalProjection = false, renderingScale = DEFAULT_RENDER_SCALE, opacity = 1) {
+  render(rotationScope, isOrthogonalProjection = false, renderingScale = DEFAULT_RENDER_SCALE, opacity = 1, lastCoordinateMode = "false") {
     this.vertices.forEach((vertex) => {
       let colorSample = undefined;
       let projectedVertex = new PointND(...vertex.coordinates);
@@ -523,7 +523,11 @@ class MeshND {
         setLegendCoordinate(Math.max(rotationScope, this.nthDimension()));
       }
       if (rotationScope >= DEPTH_MAPPING_DIMENSION || vertex.nthDimension() >= DEPTH_MAPPING_DIMENSION) depthSample = MeshND.pickDepthSample(vertex);
-      projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()), renderingScale, opacity);
+      if (lastCoordinateMode) {
+        projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()), renderingScale, opacity, Math.round(colorSample * 100) / 100);
+      } else {
+        projectedVertex.draw(depthSample, colorSample, Math.max(rotationScope, vertex.nthDimension()), renderingScale, opacity);
+      }
     });
     this.edges.forEach((edge) => {
       edge.render(isOrthogonalProjection, renderingScale, Math.max(rotationScope, edge.start.nthDimension()), opacity);
@@ -1189,6 +1193,7 @@ function resizeCanvas() {
 
 export {
   DEFAULT_RENDER_SCALE,
+  COLOR_MAPPING_DIMENSION,
   axisIdentifiers,
   rotationScope,
   disableColorLegend,

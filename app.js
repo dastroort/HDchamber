@@ -20,6 +20,7 @@ const app = {
   isOrtho: false,
   axesEnabled: false,
   fixedAxes: true,
+  lastCoordinateEnabled: false,
 };
 
 async function fetchWiki() {
@@ -68,6 +69,7 @@ function addGuiHandlers() {
   setWikiHandler();
   setCrossSectionMode();
   setAxesMode();
+  setLastCoordinateMode();
 }
 
 function setProjectionMode() {
@@ -390,6 +392,18 @@ function setAxesMode() {
   });
 }
 
+function setLastCoordinateMode() {
+  const lastCoordinateButton = document.querySelector(".button.last-coordinate-mode");
+  lastCoordinateButton.addEventListener("click", () => {
+    if (app.dimensionsToRender < GEOLIB.COLOR_MAPPING_DIMENSION)
+      alert("Cannot enable 'Last Coordinate Mode' without color mapping. Try to select at least " + GEOLIB.COLOR_MAPPING_DIMENSION + " dimensions.");
+    else {
+      app.lastCoordinateEnabled = !app.lastCoordinateEnabled;
+      lastCoordinateButton.setAttribute("title", (app.lastCoordinateEnabled ? "Disable" : "Enable") + " last-coordinate mode");
+    }
+  });
+}
+
 function tic(input) {
   app.isRendering = true;
   app.finalTime = Date.now();
@@ -440,13 +454,13 @@ function renderEnvironment(input) {
   if (app.isCrossSectionMode) {
     renderCrossSection(mesh);
     const opacity = smoothGoniometricTransition(0.25, 0.5);
-    mesh.render(rotationScope, app.isOrtho, app.renderScale, opacity);
+    mesh.render(rotationScope, app.isOrtho, app.renderScale, opacity, false);
 
     function renderCrossSection(mesh) {
       const zeros = Array(app.dimensionsToRender - 1).fill(0);
       const hyperplane = new CROSS_SECTION.Hyperplane([...zeros, 1]);
       const crossSection = hyperplane.crossSectionOfMesh(mesh, app.dimensionsToRender);
-      crossSection.render(app.dimensionsToRender - 1, app.isOrtho, app.renderScale, 5);
+      crossSection.render(app.dimensionsToRender - 1, app.isOrtho, app.renderScale, 5, app.lastCoordinateEnabled);
     }
     function smoothGoniometricTransition(angularSpeed, maxY = 1) {
       const phase = app.angle - 2 * Math.PI;
@@ -454,7 +468,7 @@ function renderEnvironment(input) {
       return Math.min(Math.pow(eased, 3), maxY);
     }
   } else {
-    mesh.render(rotationScope, app.isOrtho, app.renderScale);
+    mesh.render(rotationScope, app.isOrtho, app.renderScale, undefined, app.lastCoordinateEnabled);
   }
   // Rendering assi
   if (app.axesEnabled && app.fixedAxes) {
