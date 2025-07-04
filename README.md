@@ -1,6 +1,6 @@
 # HDchamber (Hyper-Dimensional Chamber)
 
-## A web environment built in HTML, CSS and JS to render higher-dimensional geometries such as a Tesseract!
+> 🆕 **HDchamber is now published on [Netlify](https://hdchamber.netlify.app/)!**
 
 HDchamber is a rendering environment built in vanilla JavaScript, where geometric figures from higher dimensions are brought to life.
 
