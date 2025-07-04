@@ -40,8 +40,6 @@ function addWindowEvents() {
     GEOLIB.resizeCanvas();
     const h1 = document.querySelector("h1");
     h1.style.textAlign = "center";
-    const legend = document.querySelector("legend");
-    legend.style.margin = "auto";
     tic();
   });
   window.addEventListener("wheel", () => {
@@ -451,6 +449,8 @@ function renderEnvironment(input) {
   // Distruggo la matrice di rotazione. E' importante farlo per evitare memory leaks
   r.destroy();
   // Disegno la mesh
+  const dataDiv = document.querySelector(".technical-data");
+
   if (app.isCrossSectionMode) {
     renderCrossSection(mesh);
     const opacity = smoothGoniometricTransition(0.25, 0.5);
@@ -460,7 +460,26 @@ function renderEnvironment(input) {
       const zeros = Array(app.dimensionsToRender - 1).fill(0);
       const hyperplane = new CROSS_SECTION.Hyperplane([...zeros, 1]);
       const crossSection = hyperplane.crossSectionOfMesh(mesh, app.dimensionsToRender);
+
       crossSection.render(app.dimensionsToRender - 1, app.isOrtho, app.renderScale, 5, app.lastCoordinateEnabled);
+
+      const hyperplaneString = hyperplane.toString();
+
+      if (dataDiv.classList.contains("hidden")) dataDiv.classList.remove("hidden");
+      dataDiv.innerHTML = "";
+      const p = document.createElement("p");
+      switch (app.dimensionsToRender) {
+        case 2:
+          p.innerHTML = "Line";
+          break;
+        case 3:
+          p.innerHTML = "Plane";
+          break;
+        default:
+          p.innerHTML = "Hyperplane";
+      }
+      p.innerHTML += ": " + hyperplaneString;
+      dataDiv.appendChild(p);
     }
     function smoothGoniometricTransition(angularSpeed, maxY = 1) {
       const phase = app.angle - 2 * Math.PI;
@@ -468,6 +487,8 @@ function renderEnvironment(input) {
       return Math.min(Math.pow(eased, 3), maxY);
     }
   } else {
+    dataDiv.innerHTML = "";
+    if (!dataDiv.classList.contains("hidden")) dataDiv.classList.add("hidden");
     mesh.render(rotationScope, app.isOrtho, app.renderScale, undefined, app.lastCoordinateEnabled);
   }
   // Rendering assi
