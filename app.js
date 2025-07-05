@@ -186,6 +186,7 @@ function setDimensionsHandler() {
         alert(`Invalid number of dimensions: ${dimensions.input}`);
       } else {
         app.dimensionsToRender = dimensions.input;
+        setRotationHandler();
       }
 
       if (app.isRendering) {
@@ -207,13 +208,12 @@ function setPlanesDropmenu(handler) {
     }
     handler.options = document.createElement("ul");
     handler.options.classList.add("rotation-handler-options", "button");
-    planesMap.set("+", null);
-    planesMap.set("-", null);
+    handler.dropmenu.innerHTML = "";
 
-    planesMap.keys().forEach((key) => {
+    planesMap.forEach((value, key) => {
       const rotationPlane = document.createElement("li");
       rotationPlane.classList.add("button", "rotation-plane", key);
-      rotationPlane.innerHTML = key.toUpperCase();
+      rotationPlane.innerHTML = key.toUpperCase() + " | " + value;
       handler.dropmenu.appendChild(rotationPlane);
     });
   }
@@ -221,40 +221,12 @@ function setPlanesDropmenu(handler) {
   function setPlaneButton(button) {
     button.addEventListener("click", () => {
       const input = button.innerHTML.toLowerCase();
-      if (input === "+" || input === "-") {
-        let rotationPlane = prompt("Enter the rotation plane you want to add or remove:");
-        if (rotationPlane) {
-          if (handler.planes.includes(rotationPlane)) {
-            removePlane(rotationPlane);
-          } else {
-            createPlane(rotationPlane);
-          }
-        }
-      } else {
-        let rotationPlane = input;
-        let angularSpeedFactor = prompt(`Enter the angular speed factor for the plane ${rotationPlane}:`) * 1;
-        if (angularSpeedFactor) {
-          let index = handler.planes.indexOf(rotationPlane);
-          handler.angularSpeedFactors[index] = angularSpeedFactor;
-        }
-      }
+      let rotationPlane = input.slice(0, 2);
+      let angularSpeedFactor = prompt(`Enter the angular speed factor for the plane ${rotationPlane}:`) * 1;
+      let index = handler.planes.indexOf(rotationPlane);
+      handler.angularSpeedFactors[index] = angularSpeedFactor;
+      button.innerHTML = rotationPlane.toUpperCase() + " | " + angularSpeedFactor;
     });
-  }
-
-  function removePlane(plane) {
-    let index = handler.planes.indexOf(plane);
-    handler.planes.splice(index, 1);
-    handler.angularSpeedFactors.splice(index, 1);
-    handler.dropmenu.querySelector(`.${plane}`).remove();
-  }
-
-  function createPlane(plane) {
-    const newButton = document.createElement("li");
-    newButton.classList.add("button", "rotation-plane", plane);
-    handler.planes.push(plane);
-    newButton.innerHTML = plane.toUpperCase();
-    handler.angularSpeedFactors.push(1);
-    handler.dropmenu.appendChild(newButton);
   }
 
   setPlanes();
@@ -268,11 +240,39 @@ function setRotationHandler() {
   const rotation = {
     button: document.querySelector(".button.rotation-handler"),
     dropmenu: document.querySelector(".rotation-handler + .dropmenu"),
-    planes: ["xz", "xy"],
-    angularSpeedFactors: [1, 1],
+    planes: allPossiblePlanes(app.dimensionsToRender),
+    angularSpeedFactors: Array(nCr(app.dimensionsToRender, 2)).fill(0),
     planeButtons: null,
     options: null,
   };
+
+  function allPossiblePlanes(dimensions) {
+    const coords = GEOLIB.axisIdentifiers.slice(0, dimensions).split("");
+    const planes = [];
+    for (let i = 0; i < coords.length; i++) {
+      for (let j = i + 1; j < coords.length; j++) planes.push(coords[i] + coords[j]);
+    }
+    return planes.sort(sortPlanes(coords));
+  }
+
+  function sortPlanes(coords) {
+    return function (a, b) {
+      const dimA1 = Math.max(coords.indexOf(a[0]), coords.indexOf(a[1]));
+      const dimB1 = Math.max(coords.indexOf(b[0]), coords.indexOf(b[1]));
+
+      if (dimA1 !== dimB1) return dimA1 - dimB1;
+
+      const dimA2 = Math.min(coords.indexOf(a[0]), coords.indexOf(a[1]));
+      const dimB2 = Math.min(coords.indexOf(b[0]), coords.indexOf(b[1]));
+
+      return dimA2 - dimB2;
+    };
+  }
+
+  function nCr(n, r) {
+    if (r === 0 || r === n) return 1;
+    return nCr(n - 1, r - 1) + nCr(n - 1, r);
+  }
 
   function setButton() {
     rotation.button.addEventListener("click", () => {
@@ -412,7 +412,7 @@ function tic(input) {
 
 function renderEnvironment(input) {
   const mesh = selectMesh(input, app.dimensionsToRender);
-  const rotationScope = GEOLIB.rotationScope(app.guiHandlers.rotation.planes);
+  const rotationScope = GEOLIB.rotationScope(app.guiHandlers.rotation.planes, app.guiHandlers.rotation.angularSpeedFactors);
   const rotatingAxes = new GEOLIB.CartesianAxes(app.dimensionsToRender);
   if (mesh.nthDimension() < rotationScope) mesh.extendIn(rotationScope);
   GEOLIB.uploadEnvironment();
@@ -438,7 +438,8 @@ function renderEnvironment(input) {
     }
   }
   const humanizedInput = humanizeMeshName(`${app.dimensionsToRender}-${input}`);
-  h1.innerHTML = `A ${humanizedInput} is rotating in ${rotationScope}D`;
+  if (rotationScope > 1) h1.innerHTML = `A ${humanizedInput} is rotating in ${rotationScope}D`;
+  else h1.innerHTML = `A ${humanizedInput} is static`;
   // Applico la rotazione
   for (let i = 0; i < app.guiHandlers.rotation.planes.length; i++) {
     r.set("r", [app.guiHandlers.rotation.planes[i], angles[i]]);

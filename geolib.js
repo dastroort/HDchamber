@@ -47,14 +47,21 @@ function matrixPointMultiplication(matrix, point) {
  * @throws {Error} If there is a plane which doesn't include at least one of its axes in `axisIdentifiers`.
  * @returns {number} The scope index incremented by one.
  */
-function rotationScope(planes) {
+function rotationScope(planes, angularSpeeds) {
   let scopeIndex = 0;
+
   planes.forEach((plane) => {
-    const firstPlaneAxis = plane[0];
-    const secondPlaneAxis = plane[1];
-    if (!axisIdentifiers.includes(firstPlaneAxis) || !axisIdentifiers.includes(secondPlaneAxis)) throw new Error("Invalid plane:", plane);
-    scopeIndex = Math.max(scopeIndex, axisIdentifiers.indexOf(firstPlaneAxis), axisIdentifiers.indexOf(secondPlaneAxis));
+    const speed = angularSpeeds[planes.indexOf(plane)];
+
+    if (speed && speed !== 0) {
+      const i1 = axisIdentifiers.indexOf(plane[0]);
+      const i2 = axisIdentifiers.indexOf(plane[1]);
+
+      if (i1 === -1 || i2 === -1) throw new Error(`Invalid axis in plane: ${plane}`);
+      scopeIndex = Math.max(scopeIndex, i1, i2);
+    }
   });
+
   return scopeIndex + 1;
 }
 
