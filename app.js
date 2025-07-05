@@ -440,6 +440,8 @@ function renderEnvironment(input) {
   const humanizedInput = humanizeMeshName(`${app.dimensionsToRender}-${input}`);
   if (rotationScope > 1) h1.innerHTML = `A ${humanizedInput} is rotating in ${rotationScope}D`;
   else h1.innerHTML = `A ${humanizedInput} is static`;
+  const title = document.querySelector("title");
+  title.innerHTML = "HDchamber | " + h1.innerHTML;
   // Applico la rotazione
   for (let i = 0; i < app.guiHandlers.rotation.planes.length; i++) {
     r.set("r", [app.guiHandlers.rotation.planes[i], angles[i]]);
