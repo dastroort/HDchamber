@@ -272,10 +272,10 @@ function setRotationHandler() {
   }
 
   function setButton() {
-    rotation.button.addEventListener("click", () => {
+    rotation.button.onclick = () => {
       GEOLIB.disableColorLegend();
       toggleDropmenu(rotation.dropmenu);
-    });
+    };
   }
 
   setPlanesDropmenu(rotation);
