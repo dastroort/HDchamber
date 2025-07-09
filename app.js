@@ -102,6 +102,18 @@ function toggleDropmenu(dropmenu) {
   });
 }
 
+function toggleWikipage(wikipage) {
+  wikipage.style.display = "block";
+  setTimeout(() => {
+    wikipage.classList.toggle("open");
+  }, 10);
+  wikipage.addEventListener("transitionend", () => {
+    if (!wikipage.classList.contains("open")) {
+      wikipage.style.display = "none";
+    }
+  });
+}
+
 function setMeshSelector() {
   const meshSelector = {
     button: document.querySelector(".meshes-handler .button"),
@@ -293,7 +305,7 @@ function setWikiHandler() {
 
   function setButton() {
     wiki.button.addEventListener("click", () => {
-      wiki.wikipage.classList.toggle("open");
+      toggleWikipage(wiki.wikipage);
       wiki.button.classList.toggle("open");
       uploadWikipage();
     });
