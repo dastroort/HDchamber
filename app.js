@@ -75,13 +75,10 @@ function setProjectionMode() {
     button: document.querySelector(".button.projection-mode"),
     icon: document.querySelector(".button.projection-mode .icon"),
   };
-  function toggle(itemStatus, onTrue, onFalse) {
-    return itemStatus ? onFalse : onTrue;
-  }
   function setButton() {
     projection.button.addEventListener("click", () => {
       app.isOrtho = !app.isOrtho;
-      projection.icon.src = `./icons/orto_${toggle(projection.isOrtho, "on", "off")}.png`;
+      projection.icon.src = `./icons/${app.isOrtho ? "perspective" : "ortho"}.png`;
     });
   }
 
@@ -353,6 +350,7 @@ function getMeshWikiData(technicalName) {
 function setCrossSectionMode() {
   const crossSection = {
     button: document.querySelector(".button.cross-section-mode"),
+    icon: document.querySelector(".button.cross-section-mode .icon"),
   };
 
   function setButton() {
@@ -363,6 +361,7 @@ function setCrossSectionMode() {
       } else {
         crossSection.button.setAttribute("title", "Enable cross-section mode");
       }
+      crossSection.icon.src = "./icons/cross-section-" + (app.isCrossSectionMode ? "off" : "on") + ".png";
     });
   }
 
