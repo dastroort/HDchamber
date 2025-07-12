@@ -404,12 +404,47 @@ function setLastCoordinateMode() {
   });
 }
 
-function tic(input) {
-  app.isRendering = true;
-  app.finalTime = Date.now();
-  app.angle += (app.angularSpeed * app.deltaTime()) / 1000;
-  app.initialTime = app.finalTime;
-  renderEnvironment(input);
+// RENDER AND TIC
+function humanizeMeshName(technicalName) {
+  try {
+    const target = getMeshWikiData(technicalName);
+    return target["commonName"];
+  } catch (error) {
+    console.warn("An error is found, it will be returned the original name.", error);
+    return technicalName;
+  }
+}
+
+function renderCrossSection(mesh, dataDiv) {
+  const zeros = Array(app.dimensionsToRender - 1).fill(0);
+  const hyperplane = new CROSS_SECTION.Hyperplane([...zeros, 1]);
+  const crossSection = hyperplane.crossSectionOfMesh(mesh, app.dimensionsToRender);
+  
+  crossSection.render(app.dimensionsToRender - 1, app.isOrtho, app.renderScale, 5, app.lastCoordinateEnabled);
+  
+  const hyperplaneString = hyperplane.toString();
+  
+  if (dataDiv.classList.contains("hidden")) dataDiv.classList.remove("hidden");
+  dataDiv.innerHTML = "";
+  const p = document.createElement("p");
+  switch (app.dimensionsToRender) {
+    case 2:
+      p.innerHTML = "Line";
+      break;
+      case 3:
+        p.innerHTML = "Plane";
+      break;
+    default:
+      p.innerHTML = "Hyperplane";
+    }
+  p.innerHTML += ": " + hyperplaneString;
+  dataDiv.appendChild(p);
+}
+
+function smoothGoniometricTransition(angularSpeed, maxY = 1) {
+  const phase = app.angle - 2 * Math.PI;
+  const eased = 0.5 * (1 - Math.cos(angularSpeed * phase));
+  return Math.min(Math.pow(eased, 3), maxY);
 }
 
 function renderEnvironment(input) {
@@ -420,25 +455,14 @@ function renderEnvironment(input) {
   GEOLIB.uploadEnvironment();
   // Creo la matrice di rotazione
   let r = GEOLIB.SingletonMatrix.init(app.dimensionsToRender);
-
   if (app.guiHandlers.rotation.planes.length !== app.guiHandlers.rotation.angularSpeedFactors.length)
     throw new Error(
       `Num of planes and angles must be equal:\nRotation planes: ${app.guiHandlers.rotation.planes} (${app.guiHandlers.rotation.planes.length})\nAngles: ${app.guiHandlers.rotation.angularSpeedFactors} (${app.guiHandlers.rotation.angularSpeedFactors.length})`
     );
   // Calcolo gli angoli di rotazione nell'istante attuale
   let angles = app.guiHandlers.rotation.angularSpeedFactors.map((factor) => (factor * app.angle) % (2 * Math.PI));
-
   // Aggiorno il titolo
   const h1 = document.querySelector("h1");
-  function humanizeMeshName(technicalName) {
-    try {
-      const target = getMeshWikiData(technicalName);
-      return target["commonName"];
-    } catch (error) {
-      console.warn("An error is found, it will be returned the original name.", error);
-      return technicalName;
-    }
-  }
   const humanizedInput = humanizeMeshName(`${app.dimensionsToRender}-${input}`);
   if (rotationScope > 1) h1.innerHTML = `A ${humanizedInput} is rotating in ${rotationScope}D`;
   else h1.innerHTML = `A ${humanizedInput} is static`;
@@ -455,42 +479,10 @@ function renderEnvironment(input) {
   r.destroy();
   // Disegno la mesh
   const dataDiv = document.querySelector(".technical-data");
-
   if (app.isCrossSectionMode) {
-    renderCrossSection(mesh);
+    renderCrossSection(mesh, dataDiv);
     const opacity = smoothGoniometricTransition(0.25, 0.5);
     mesh.render(rotationScope, app.isOrtho, app.renderScale, opacity, false);
-
-    function renderCrossSection(mesh) {
-      const zeros = Array(app.dimensionsToRender - 1).fill(0);
-      const hyperplane = new CROSS_SECTION.Hyperplane([...zeros, 1]);
-      const crossSection = hyperplane.crossSectionOfMesh(mesh, app.dimensionsToRender);
-
-      crossSection.render(app.dimensionsToRender - 1, app.isOrtho, app.renderScale, 5, app.lastCoordinateEnabled);
-
-      const hyperplaneString = hyperplane.toString();
-
-      if (dataDiv.classList.contains("hidden")) dataDiv.classList.remove("hidden");
-      dataDiv.innerHTML = "";
-      const p = document.createElement("p");
-      switch (app.dimensionsToRender) {
-        case 2:
-          p.innerHTML = "Line";
-          break;
-        case 3:
-          p.innerHTML = "Plane";
-          break;
-        default:
-          p.innerHTML = "Hyperplane";
-      }
-      p.innerHTML += ": " + hyperplaneString;
-      dataDiv.appendChild(p);
-    }
-    function smoothGoniometricTransition(angularSpeed, maxY = 1) {
-      const phase = app.angle - 2 * Math.PI;
-      const eased = 0.5 * (1 - Math.cos(angularSpeed * phase));
-      return Math.min(Math.pow(eased, 3), maxY);
-    }
   } else {
     dataDiv.innerHTML = "";
     if (!dataDiv.classList.contains("hidden")) dataDiv.classList.add("hidden");
@@ -504,6 +496,25 @@ function renderEnvironment(input) {
     rotatingAxes.render(rotationScope, app.isOrtho, app.renderScale);
   }
   app.animationId = requestAnimationFrame(() => tic(input));
+}
+
+function tic(input) {
+  app.isRendering = true;
+  app.finalTime = Date.now();
+  app.angle += (app.angularSpeed * app.deltaTime()) / 1000;
+  app.initialTime = app.finalTime;
+  renderEnvironment(input);
+}
+
+function addGuiHandlers() {
+  setProjectionMode();
+  setMeshSelector();
+  setDimensionsHandler();
+  setRotationHandler();
+  setWikiHandler();
+  setCrossSectionMode();
+  setAxesMode();
+  setLastCoordinateMode();
 }
 
 addWindowEvents();
