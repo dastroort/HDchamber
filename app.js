@@ -62,15 +62,13 @@ function addWindowEvents() {
   });
 }
 
-function addGuiHandlers() {
-  setProjectionMode();
-  setMeshSelector();
-  setDimensionsHandler();
-  setRotationHandler();
-  setWikiHandler();
-  setCrossSectionMode();
-  setAxesMode();
-  setLastCoordinateMode();
+
+// PROJECTION MODE
+function setProjectionButton({ button, icon }) {
+  button.addEventListener("click", () => {
+    app.isOrtho = !app.isOrtho;
+    icon.src = `./icons/${app.isOrtho ? "perspective" : "ortho"}.png`;
+  });
 }
 
 function setProjectionMode() {
@@ -78,14 +76,7 @@ function setProjectionMode() {
     button: document.querySelector(".button.projection-mode"),
     icon: document.querySelector(".button.projection-mode .icon"),
   };
-  function setButton() {
-    projection.button.addEventListener("click", () => {
-      app.isOrtho = !app.isOrtho;
-      projection.icon.src = `./icons/${app.isOrtho ? "perspective" : "ortho"}.png`;
-    });
-  }
-
-  setButton();
+  setProjectionButton(projection);
   app.guiHandlers.projection = projection;
 }
 
@@ -93,8 +84,20 @@ function isDropmenuOpen(dropmenu) {
   return dropmenu.classList.contains("open");
 }
 
-function toggleDropmenu(dropmenu) {
-  dropmenu.style.display = "flex";
+function isValidDisplay(display) {
+  const temp = document.createElement("div");
+  temp.style.display = display;
+  return temp.style.display === display;
+}
+
+function toggleDropmenuDisplay(dropmenu, displayWhenOpen) {
+  if (!isValidDisplay(displayWhenOpen)) {
+    throw new Error("Invalid display entered: " + displayWhenOpen);
+  }
+  if (displayWhenOpen === "none") {
+    throw new Error("Cannot enter 'none'.");
+  }
+  dropmenu.style.display = displayWhenOpen;
   setTimeout(() => {
     dropmenu.classList.toggle("open");
   }, 10);
@@ -102,18 +105,45 @@ function toggleDropmenu(dropmenu) {
     if (!isDropmenuOpen(dropmenu)) {
       dropmenu.style.display = "none";
     }
+  }, {once: true});
+}
+
+// MESH SELECTOR
+function setMeshSelectorButton({ button, dropmenu }) {
+  button.addEventListener("click", () => {
+    toggleDropmenuDisplay(dropmenu, "flex");
   });
 }
 
-function toggleWikipage(wikipage) {
-  wikipage.style.display = "block";
-  setTimeout(() => {
-    wikipage.classList.toggle("open");
-  }, 10);
-  wikipage.addEventListener("transitionend", () => {
-    if (!wikipage.classList.contains("open")) {
-      wikipage.style.display = "none";
-    }
+function setMeshSelectorDropmenu({ dropmenu, meshButtons }) {
+  const meshesMap = new Map();
+  meshesMap.set("Hypercube", GEOLIB.Hypercube);
+  meshesMap.set("Simplex", GEOLIB.Simplex);
+  meshesMap.set("Hypersphere", GEOLIB.Hypersphere);
+  meshesMap.set("Torus", GEOLIB.Torus);
+  meshesMap.set("Orthoplex", GEOLIB.Orthoplex);
+  meshesMap.set("And so on...", null);
+
+  meshesMap.keys().forEach((key) => {
+    const mesh = document.createElement("li");
+    mesh.classList.add("button", "mesh");
+    mesh.innerHTML = key;
+    dropmenu.appendChild(mesh);
+  });
+
+  meshButtons = document.querySelectorAll(".button.mesh");
+  meshButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      app.meshToRender = button.innerHTML;
+      if (app.meshToRender !== "And so on...") {
+        cancelAnimationFrame(app.animationId);
+        uploadWikipage();
+        GEOLIB.disableColorLegend();
+        tic(app.meshToRender);
+      } else {
+        alert("Wait for new meshes!");
+      }
+    });
   });
 }
 
@@ -123,45 +153,8 @@ function setMeshSelector() {
     dropmenu: document.querySelector(".meshes-handler .dropmenu"),
     meshButtons: null,
   };
-  function setButton() {
-    meshSelector.button.addEventListener("click", () => {
-      toggleDropmenu(meshSelector.dropmenu);
-    });
-  }
-  function setDropmenu() {
-    const meshesMap = new Map();
-    meshesMap.set("Hypercube", GEOLIB.Hypercube);
-    meshesMap.set("Simplex", GEOLIB.Simplex);
-    meshesMap.set("Hypersphere", GEOLIB.Hypersphere);
-    meshesMap.set("Torus", GEOLIB.Torus);
-    meshesMap.set("Orthoplex", GEOLIB.Orthoplex);
-    meshesMap.set("And so on...", null);
-
-    meshesMap.keys().forEach((key) => {
-      const mesh = document.createElement("li");
-      mesh.classList.add("button", "mesh");
-      mesh.innerHTML = key;
-      meshSelector.dropmenu.appendChild(mesh);
-    });
-    // Aggiorno la property prima nulla
-    meshSelector.meshButtons = document.querySelectorAll(".button.mesh");
-    meshSelector.meshButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        app.meshToRender = button.innerHTML;
-        if (app.meshToRender !== "And so on...") {
-          cancelAnimationFrame(app.animationId);
-          uploadWikipage();
-          GEOLIB.disableColorLegend();
-          tic(app.meshToRender);
-        } else {
-          alert("Wait for new meshes!");
-        }
-      });
-    });
-  }
-
-  setDropmenu();
-  setButton();
+  setMeshSelectorDropmenu(meshSelector);
+  setMeshSelectorButton(meshSelector);
   app.guiHandlers.meshSelector = meshSelector;
 }
 
@@ -177,8 +170,8 @@ function selectMesh(input, dimensions) {
       return new GEOLIB.Torus(dimensions);
     case "Orthoplex":
       return new GEOLIB.Orthoplex(dimensions);
-    default:
-      throw new Error("Invalid input entered: " + '"' + input + '"');
+      default:
+        throw new Error("Invalid input entered: " + '"' + input + '"');
   }
 }
 
