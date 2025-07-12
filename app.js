@@ -35,6 +35,16 @@ async function fetchWiki() {
 
 const WIKI = await fetchWiki();
 
+function zoomIn(threshold) {
+  app.renderScale += threshold;
+}
+
+function zoomOut(threshold) {
+  app.renderScale -= threshold;
+}
+
+const THRESHOLD = 5;
+
 function addWindowEvents() {
   window.addEventListener("resize", () => {
     GEOLIB.resizeCanvas();
@@ -42,19 +52,12 @@ function addWindowEvents() {
     h1.style.textAlign = "center";
     tic();
   });
-  window.addEventListener("wheel", () => {
-    const threshold = 5;
-    const zoomIn = (threshold) => {
-      app.renderScale += threshold;
-    };
-    const zoomOut = (threshold) => {
-      app.renderScale -= threshold;
-    };
 
+  window.addEventListener("wheel", (event) => {
     if (event.deltaY < 0) {
-      zoomIn(threshold);
+      zoomIn(THRESHOLD);
     } else {
-      zoomOut(threshold);
+      zoomOut(THRESHOLD);
     }
   });
 }
