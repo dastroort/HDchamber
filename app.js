@@ -350,48 +350,17 @@ function setWikiHandler() {
   app.guiHandlers.wiki = wiki;
 }
 
-function uploadWikipage() {
-  try {
-    function writeMeshWikipage(technicalName, container) {
-      const target = getMeshWikiData(technicalName);
-      const title = document.createElement("h3");
-      const dimensions = document.createElement("p");
-      const description = document.createElement("p");
-
-      title.innerHTML = target["commonName"];
-      dimensions.innerHTML = "Dimensions: " + target["dimensions"];
-      description.innerHTML = target["description"];
-
-      const elements = [title, dimensions, description];
-      elements.forEach((element) => {
-        container.appendChild(element);
-      });
+// CROSS SECTION
+function setCrossSectionButton({button, icon}) {
+  button.addEventListener("click", () => {
+    app.isCrossSectionMode = !app.isCrossSectionMode;
+    if (app.isCrossSectionMode) {
+      button.setAttribute("title", "Disable cross-section mode");
+    } else {
+      button.setAttribute("title", "Enable cross-section mode");
     }
-
-    app.guiHandlers.wiki.wikipage.replaceChildren();
-    writeMeshWikipage(app.dimensionsToRender + "-" + app.meshToRender, app.guiHandlers.wiki.wikipage);
-  } catch {
-    function writeDefaultWikipage(container) {
-      const title = document.createElement("h3");
-      const p = document.createElement("p");
-
-      title.innerHTML = "Welcome to the Wiki!";
-      p.innerHTML = "Select a mesh to see its documentation!";
-
-      const elements = [title, p];
-      elements.forEach((element) => {
-        container.appendChild(element);
-      });
-    }
-
-    writeDefaultWikipage(app.guiHandlers.wiki.wikipage);
-  }
-}
-
-function getMeshWikiData(technicalName) {
-  const target = WIKI.find((mesh) => mesh["technicalName"] === technicalName);
-  if (target === undefined) throw new Error(`Cannot find the technical name "${technicalName}" in the wiki.`);
-  return target;
+    icon.src = "./icons/cross-section-" + (app.isCrossSectionMode ? "off" : "on") + ".png";
+  });
 }
 
 function setCrossSectionMode() {
@@ -399,20 +368,7 @@ function setCrossSectionMode() {
     button: document.querySelector(".button.cross-section-mode"),
     icon: document.querySelector(".button.cross-section-mode .icon"),
   };
-
-  function setButton() {
-    crossSection.button.addEventListener("click", () => {
-      app.isCrossSectionMode = !app.isCrossSectionMode;
-      if (app.isCrossSectionMode) {
-        crossSection.button.setAttribute("title", "Disable cross-section mode");
-      } else {
-        crossSection.button.setAttribute("title", "Enable cross-section mode");
-      }
-      crossSection.icon.src = "./icons/cross-section-" + (app.isCrossSectionMode ? "off" : "on") + ".png";
-    });
-  }
-
-  setButton();
+  setCrossSectionButton(crossSection);
   app.guiHandlers.crossSection = crossSection;
 }
 
