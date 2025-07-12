@@ -175,33 +175,35 @@ function selectMesh(input, dimensions) {
   }
 }
 
+// DIMENSIONS HANDLER
+function ValidDimensions(dimensions) {
+  return dimensions >= app.MIN_DIMENSIONS && dimensions <= app.MAX_DIMENSIONS;
+}
+
+function setDimensionsButton({button, input}) {
+  button.addEventListener("click", () => {
+    input = prompt(`Enter the number of dimensions of the shape you want to see (${app.MIN_DIMENSIONS}-${app.MAX_DIMENSIONS}):`) * 1;
+    GEOLIB.disableColorLegend();
+    if (!ValidDimensions(input)) {
+      alert(`Invalid number of dimensions: ${input}`);
+    } else {
+      app.dimensionsToRender = input;
+      setRotationHandler();
+    }
+
+    if (app.isRendering) {
+      const h1 = document.querySelector("h1");
+      h1.innerHTML = `A ${app.dimensionsToRender}-${input} rotating in ${app.dimensionsToRender}`;
+    }
+  });
+}
+
 function setDimensionsHandler() {
   const dimensions = {
     button: document.querySelector(".button.dimensions-handler"),
     input: null,
   };
-  function isValidNumberOfDimensions(dimensionsEntered) {
-    return dimensionsEntered >= app.MIN_DIMENSIONS && dimensionsEntered <= app.MAX_DIMENSIONS;
-  }
-  function setButton() {
-    dimensions.button.addEventListener("click", () => {
-      dimensions.input = prompt(`Enter the number of dimensions of the shape you want to see (${app.MIN_DIMENSIONS}-${app.MAX_DIMENSIONS}):`) * 1;
-      GEOLIB.disableColorLegend();
-      if (!isValidNumberOfDimensions(dimensions.input)) {
-        alert(`Invalid number of dimensions: ${dimensions.input}`);
-      } else {
-        app.dimensionsToRender = dimensions.input;
-        setRotationHandler();
-      }
-
-      if (app.isRendering) {
-        const h1 = document.querySelector("h1");
-        h1.innerHTML = `A ${app.dimensionsToRender}-${dimensions.input} rotating in ${app.dimensionsToRender}`;
-      }
-    });
-  }
-
-  setButton();
+  setDimensionsButton(dimensions);
   app.guiHandlers.dimension = dimensions;
 }
 
