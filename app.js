@@ -290,44 +290,53 @@ function setRotationHandler() {
   app.guiHandlers.rotation = rotation;
 }
 
-  function allPossiblePlanes(dimensions) {
-    const coords = GEOLIB.axisIdentifiers.slice(0, dimensions).split("");
-    const planes = [];
-    for (let i = 0; i < coords.length; i++) {
-      for (let j = i + 1; j < coords.length; j++) planes.push(coords[i] + coords[j]);
-    }
-    return planes.sort(sortPlanes(coords));
+// WIKI HANDLER
+function getMeshWikiData(technicalName) {
+  const target = WIKI.find((mesh) => mesh["technicalName"] === technicalName);
+  if (target === undefined) throw new Error(`Cannot find the technical name "${technicalName}" in the wiki.`);
+  return target;
+}
+
+function writeMeshWikipage(technicalName, container) {
+  const target = getMeshWikiData(technicalName);
+  const title = document.createElement("h3");
+  const dimensions = document.createElement("p");
+  const description = document.createElement("p");
+  title.innerHTML = target["commonName"];
+  dimensions.innerHTML = "Dimensions: " + target["dimensions"];
+  description.innerHTML = target["description"];
+  const elements = [title, dimensions, description];
+  elements.forEach((element) => {
+    container.appendChild(element);
+  });
+}
+
+function writeDefaultWikipage(container) {
+  const title = document.createElement("h3");
+  const p = document.createElement("p");
+  title.innerHTML = "Welcome to the Wiki!";
+  p.innerHTML = "Select a mesh to see its documentation!";
+  const elements = [title, p];
+  elements.forEach((element) => {
+    container.appendChild(element);
+  });
+}
+
+function uploadWikipage() {
+  try {
+    app.guiHandlers.wiki.wikipage.replaceChildren();
+    writeMeshWikipage(app.dimensionsToRender + "-" + app.meshToRender, app.guiHandlers.wiki.wikipage);
+  } catch {
+    writeDefaultWikipage(app.guiHandlers.wiki.wikipage);
   }
+}
 
-  function sortPlanes(coords) {
-    return function (a, b) {
-      const dimA1 = Math.max(coords.indexOf(a[0]), coords.indexOf(a[1]));
-      const dimB1 = Math.max(coords.indexOf(b[0]), coords.indexOf(b[1]));
-
-      if (dimA1 !== dimB1) return dimA1 - dimB1;
-
-      const dimA2 = Math.min(coords.indexOf(a[0]), coords.indexOf(a[1]));
-      const dimB2 = Math.min(coords.indexOf(b[0]), coords.indexOf(b[1]));
-
-      return dimA2 - dimB2;
-    };
-  }
-
-  function nCr(n, r) {
-    if (r === 0 || r === n) return 1;
-    return nCr(n - 1, r - 1) + nCr(n - 1, r);
-  }
-
-  function setButton() {
-    rotation.button.onclick = () => {
-      GEOLIB.disableColorLegend();
-      toggleDropmenu(rotation.dropmenu);
-    };
-  }
-
-  setPlanesDropmenu(rotation);
-  setButton();
-  app.guiHandlers.rotation = rotation;
+function setWikiButton({button, wikipage}) {
+  button.addEventListener("click", () => {
+    toggleDropmenuDisplay(wikipage, "block");
+    button.classList.toggle("open");
+    uploadWikipage();
+  });
 }
 
 function setWikiHandler() {
@@ -337,16 +346,7 @@ function setWikiHandler() {
     input: null,
     meshData: null,
   };
-
-  function setButton() {
-    wiki.button.addEventListener("click", () => {
-      toggleWikipage(wiki.wikipage);
-      wiki.button.classList.toggle("open");
-      uploadWikipage();
-    });
-  }
-
-  setButton();
+  setWikiButton(wiki);
   app.guiHandlers.wiki = wiki;
 }
 
